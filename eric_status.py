@@ -14,14 +14,18 @@ def eprint(*args, **kwargs):
 
 jobid=sys.argv[1]
 client = boto3.client('batch')
+logclient = boto3.client('logs')
 response = client.describe_jobs(jobs=[jobid])['jobs'][0]
 status = response['status']
 
 eprint("{0} status is {1}".format(jobid,status))
 
+
 if status == 'SUCCEEDED':
 	print('success')
 elif status == 'FAILED':
+	log = logclient.describe_log_streams(logGroupName='/aws/batch/job',limit=1)
+	eprint(log)
 	print('failed')
 else:
 	print('running')

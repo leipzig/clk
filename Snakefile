@@ -17,11 +17,12 @@ def s3client():
         aws_secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
     )
 s3_boto2 = S3RemoteProvider()
-s3_boto2.keep_local=True
-s3_boto2.stay_on_remote=True
+s3_boto2.keep_local=True #Keep local copies of remote input files
+#s3_boto2.stay_on_remote=True #don't download the file at all
 
 LOCAL_SCRATCH = "/scratch"
 RAWDIR="SRP091981"
+PROCESSDIR="process"
 SRAFILES = [line.rstrip() for line in open("SraAccList.txt")]
 ILLUMINA_SRA = metautils.illuminaRuns()
 PACBIO_SRA = metautils.pacbioRuns()
@@ -107,6 +108,7 @@ rule star_align:
             --envvars "sample={wildcards.sample}" "project=SRP091981" "bytes={params.bytes}" \
             --ebs /mnt/my-ebs:500:st1:ext4 \
             star.sh
+            touch {output}
             """
 #> {wildcards.sample}.runid 2>&1 
 
@@ -177,13 +179,31 @@ rule minimap_map:
 
 
 rule fetch_alignment:
-    input: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam"
+    input: s3_boto2.remote(PROJECT_BUCKET+"/"+RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",keep_local=True)
     output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam"
     shell:
         """
         cp {input} {output}
         """
 
+rule untreatedvslowdose:
+    output: "untreatedvslowdose.manifest.txt"
+    run:
+        metautils.twoSampleComparisonManifest('Untreated HCT116','0.5 uM T3 treated HCT116',"untreatedvslowdose.manifest.txt")
+
+rule rmatsiso:
+    input: untreated=s3_boto2.remote(expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),keep_local=True),
+           treated=s3_boto2.remote(expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),keep_local=True),
+           manifest="untreatedvslowdose.manifest.txt"
+            
+    output: expand(PROCESSDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
+            expand(PROCESSDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),
+            
+    shell:
+        """
+        rMATS-ISO.py --in-gtf GRCh38_star/genes.gtf --in-bam {input.manifest} -o {PROCESSDIR}
+        """
+        
 #rule starindex:
 #    output: ""
 #STAR --runMode genomeGenerate --runThreadN 8 --genomeDir ./ --genomeFastaFiles genome.fa --sjdbGTFfile genes.gtf --sjdbOverhang 100
@@ -270,13 +290,13 @@ rule sam_novel_gtf:
         aln_cov=config["lr2rmats"]["aln_cov"],
         iden_frac=config["lr2rmats"]["iden_frac"],
         sec_rat=config["lr2rmats"]["sec_rat"],
-        mb = 5000
+        mb = 10000
     shell:
         """
             ./batchit submit \
             --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-iso:latest  \
             --role ecsTaskRole  \
-            --queue rightnow \
+            --queue when_you_get_to_it \
             --jobname {wildcards.sample} \
             --cpus 4 \
             --mem {params.mb} \
