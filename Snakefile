@@ -31,7 +31,7 @@ rule onemini:
     input: RAWDIR+"/SRR5009429_sam_novel.gtf", RAWDIR+"/SRR5009429.lr2rmats.log", RAWDIR+"/SRR5009429.filtered.bam"
 
 rule justone:
-    input: RAWDIR+"/SRR5009477.Aligned.sortedByCoord.out.bam"
+    input: RAWDIR+"/SRR5009515.Aligned.sortedByCoord.out.bam"
 
 rule bigboy:
     input: RAWDIR+"/SRR5009517.Aligned.sortedByCoord.out.bam"
@@ -42,6 +42,10 @@ rule s3_illumina_files:
 
 rule illumina_align:
     input: expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=ILLUMINA_SRA)
+
+rule illumina_index:
+    input: expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.bai", sampleids=ILLUMINA_SRA)
+
 
 rule s3_pacbio_files:
     input: expand(RAWDIR+"/{sampleids}.fastq.gz", sampleids=PACBIO_SRA)
@@ -102,7 +106,7 @@ rule star_align:
             --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/star:latest  \
             --role ecsTaskRole  \
             --queue when_you_get_to_it \
-            --jobname {wildcards.sample} \
+            --jobname star_{wildcards.sample} \
             --cpus 16 \
             --mem {params.mb} \
             --envvars "sample={wildcards.sample}" "project=SRP091981" "bytes={params.bytes}" \
@@ -168,7 +172,7 @@ rule minimap_map:
         --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/minimap2:latest  \
         --role ecsTaskRole  \
         --queue when_you_get_to_it \
-        --jobname {wildcards.sample} \
+        --jobname minimap_{wildcards.sample} \
         --cpus 16 \
         --mem {params.mb} \
         --envvars "sample={wildcards.sample}" "project=SRP091981" \
@@ -178,22 +182,76 @@ rule minimap_map:
         """
 
 
-rule fetch_alignment:
-    input: s3_boto2.remote(PROJECT_BUCKET+"/"+RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",keep_local=True)
-    output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam"
-    shell:
-        """
-        cp {input} {output}
-        """
+# rule fetch_alignment:
+#     input: s3_boto2.remote(PROJECT_BUCKET+"/"+RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",keep_local=True)
+#     output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam"
+#     shell:
+#         """
+#         cp {input} {output}
+#         """
 
 rule untreatedvslowdose:
     output: "untreatedvslowdose.manifest.txt"
     run:
         metautils.twoSampleComparisonManifest('Untreated HCT116','0.5 uM T3 treated HCT116',"untreatedvslowdose.manifest.txt")
 
-rule rmatsiso:
+rule isomodule:
+    input: bam=RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam", bai=RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam.bai"
+    output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam.IsoExon", RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam.IsoMatrix"
+    params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','IsoModule'),
+            mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','IsoModule')
+    shell: """
+            ./batchit submit \
+            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-iso:latest  \
+            --role ecsTaskRole  \
+            --queue when_you_get_to_it \
+            --jobname isomodule_{wildcards.sample} \
+            --cpus 16 \
+            --mem {params.mb} \
+            --envvars "sample={wildcards.sample}" "project=SRP091981" "bytes={params.bytes}" \
+            --ebs /mnt/my-ebs:500:st1:ext4 \
+            isomodule.sh
+            touch {output}
+            """
+
+
+rule rmatsmodule:
+    input: untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoMatrix", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
+           treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116"))
+
+           
+rule rmatsprep:
     input: untreated=s3_boto2.remote(expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),keep_local=True),
            treated=s3_boto2.remote(expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),keep_local=True),
+           manifest="untreatedvslowdose.manifest.txt"
+    output: "prepped"
+    shell: "ls -alt {input}; touch prepped"
+
+    # input: untreated=s3_boto2.remote(expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),keep_local=True),
+    #       treated=s3_boto2.remote(expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),keep_local=True),
+    
+rule bamindex:
+    input: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",
+    output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam.bai"
+    params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','samtoolsindex'),
+            mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','samtoolsindex')
+    shell: """
+            ./batchit submit \
+            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/samtools:latest  \
+            --role ecsTaskRole  \
+            --queue when_you_get_to_it \
+            --jobname samtoolsindex_{wildcards.sample} \
+            --cpus 1 \
+            --mem {params.mb} \
+            --envvars "sample={wildcards.sample}" "project=SRP091981" "bytes={params.bytes}" \
+            --ebs /mnt/my-ebs:500:st1:ext4 \
+            samtoolsindex.sh
+            touch {output}
+            """
+            
+rule rmatsiso:
+    input: untreated=expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", ext=['bam','bam.bai'], sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
+           treated=expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", ext=['bam','bam.bai'], sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),
            manifest="untreatedvslowdose.manifest.txt"
             
     output: expand(PROCESSDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
@@ -204,6 +262,7 @@ rule rmatsiso:
         rMATS-ISO.py --in-gtf GRCh38_star/genes.gtf --in-bam {input.manifest} -o {PROCESSDIR}
         """
         
+
 #rule starindex:
 #    output: ""
 #STAR --runMode genomeGenerate --runThreadN 8 --genomeDir ./ --genomeFastaFiles genome.fa --sjdbGTFfile genes.gtf --sjdbOverhang 100
@@ -297,10 +356,11 @@ rule sam_novel_gtf:
             --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-iso:latest  \
             --role ecsTaskRole  \
             --queue when_you_get_to_it \
-            --jobname {wildcards.sample} \
+            --jobname lr2rmats_{wildcards.sample} \
             --cpus 4 \
             --mem {params.mb} \
             --envvars "sample={wildcards.sample}" "project=SRP091981" "aln_cov={params.aln_cov}" "iden_frac={params.iden_frac}" "sec_rat={params.sec_rat}" \
             --ebs /mnt/my-ebs:500:st1:ext4 \
             lr2rmats.sh && touch {output}
         """
+

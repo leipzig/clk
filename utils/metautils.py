@@ -46,6 +46,10 @@ def getECS(runName,units,program):
             mb = 192000
         else:
             mb = max(64000,10*size)
+    elif program=='IsoModule':
+        mb = 32000
+    elif program=='samtoolsindex':
+        mb = 16000
     else:
         raise ValueError
     if units=='bytes':
@@ -63,19 +67,17 @@ def getECS(runName,units,program):
 # sam2_rep2.bam
 # sam2_rep3.bam
 def twoSampleComparisonManifest(samp1,samp2,filename):
-    run1 = getBamsFromSampleName(samp1)
-    run2 = getBamsFromSampleName(samp2)
     text_file = open(filename, "w")
     text_file.write("2\n") #two-way comparison
     for runName in [samp1,samp2]:
-        run = st.loc[st['SampleName']==runName]['Run'].tolist()
+        run = getBamsFromSampleName(runName)
         text_file.write("{0}\n".format(len(run)))
         for replicate in run:
             text_file.write("{0}\n".format(replicate))
 
 def getBamsFromSampleName(samp):
     run = getRunsFromSampleName(samp)
-    bams = ["{0}.Aligned.sortedByCoord.out.bam".format(replicate) for replicate in run]
+    bams = ["panorama-clk-repro/SRP091981/{0}.Aligned.sortedByCoord.out.bam".format(replicate) for replicate in run]
     return(bams)
 
 def getRunsFromSampleName(samp):

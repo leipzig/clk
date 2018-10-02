@@ -40,6 +40,7 @@ cd ..
 ln -s htslib-${HTSLIB_VERSION} htslib
 make CFLAGS='-Wall -O2 -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-function -I${PREFIX}/include/' LDFLAGS="-L$PREFIX/lib"
 cp IsoModule $PREFIX/bin
+chmod +x $PREFIX/bin/IsoModule
 #to top level
 
 
@@ -49,9 +50,22 @@ cd lr2rmats
 ln -s ../IsoModule/htslib .
 make CFLAGS='-Wall -O2 -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-function -I${PREFIX}/include/' LDFLAGS="-L$PREFIX/lib"
 cp bin/lr2rmats $PREFIX/bin
+chmod +x $PREFIX/bin/lr2rmats
 
 cd $SRC_DIR
 make all
+
+echo "install IsoPlot $PWD"
+cp $SRC_DIR/ISOPlot/IsoPlot.py $PREFIX/bin
+chmod +x $PREFIX/bin/IsoPlot.py
+
+echo "install IsoClass $PWD"
+cp $SRC_DIR/ISOClassify/IsoClass.py $PREFIX/bin
+chmod +x $PREFIX/bin/IsoClass.py
+
+echo "install IsoRscript $PWD"
+cp $SRC_DIR/rmats-EM/IsoRscript.r $PREFIX/bin
+chmod +x $PREFIX/bin/IsoRscript.r
 
 echo "done installing"
 

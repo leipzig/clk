@@ -4,6 +4,8 @@ MAINTAINER leipzig <leipzig@panoramamedicine.com>
 
 LABEL docker_image rna_seq_analysis
 
+ENV PATH /opt/conda/bin:$PATH
+
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
     build-essential \
     bzip2 \
