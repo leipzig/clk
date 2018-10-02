@@ -1,0 +1,55 @@
+{% set version = "0.1.1" %}
+{% set sha256 = "5cef1999f1236eb179e63f81d597ed3b9c9b856c49ef22bba232c19838a5e927" %}
+
+package:
+  name: rmats-iso
+  version: '{{ version }}'
+
+source:
+  #sha256: '{{sha256}}'
+  git_url: https://github.com/leipzig/rMATS-ISO.git
+  #url: https://codeload.github.com/leipzig/rMATS-ISO/tar.gz/master
+  #url: https://sourceforge.net/projects/rmats-iso/files/rMATS-ISO/rMATS-ISO.{{ version }}.zip
+
+build:
+  number: 0
+  skip: True    # [py27]
+
+#glibc
+requirements:
+  host:
+    - python >=3.4,!=3.7
+    - zlib
+    - libcurl
+    - xz
+    - r-nloptr
+    - r-doparallel
+    - r-foreach
+
+
+  run:
+    - zlib
+    - xz
+    - libcurl
+    - python >=3.4,!=3.7
+    - htslib
+    - minimap2 >=2.5
+    - star >=2.5.3a
+    - samtools >=1.6
+    - snakemake
+    - ucsc-gtftogenepred
+    - ucsc-genepredtobed
+    - bioconductor-zlibbioc
+    - r-nloptr
+    - r-doparallel
+    - r-foreach
+
+
+test:
+  commands:
+    - rMATS-ISO.py -h
+
+about:
+  home: https://rmats-iso.sourceforge.io
+  license: MIT
+  summary: rMATS-Iso is a generalization of the rMATS statistical framework, to detect differential splicing modules with complex splicing patterns using replicate RNA-seq data.
