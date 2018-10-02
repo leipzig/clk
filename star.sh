@@ -19,7 +19,7 @@ STAR --runMode alignReads \
      --outFileNamePrefix ${sample}.  \
      --readFilesIn  ${sample}_1.fastq.gz ${sample}_2.fastq.gz
 
-samtools index ${sample}.Aligned.sortedByCoord.out.bam
+/code/samtools-1.9/samtools index ${sample}.Aligned.sortedByCoord.out.bam
 
 aws s3 cp ${sample}.Aligned.sortedByCoord.out.bam s3://panorama-clk-repro/${project}/
 aws s3 cp ${sample}.Aligned.sortedByCoord.out.bam.bai s3://panorama-clk-repro/${project}/

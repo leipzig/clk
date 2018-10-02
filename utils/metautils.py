@@ -47,7 +47,7 @@ def getECS(runName,units,program):
         else:
             mb = max(64000,10*size)
     elif program=='IsoModule':
-        mb = 32000
+        mb = 192000
     elif program=='samtoolsindex':
         mb = 16000
     else:
