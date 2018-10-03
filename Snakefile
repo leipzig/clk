@@ -196,10 +196,11 @@ rule untreatedvslowdose:
         metautils.twoSampleComparisonManifest('Untreated HCT116','0.5 uM T3 treated HCT116',"untreatedvslowdose.manifest.txt")
 
 rule isomodule:
-    input: bam=RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam", bai=RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam.bai"
-    output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam.IsoExon", RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam.IsoMatrix"
+    input: bam=RAWDIR+"/{sample}.Aligned{ext}.bam", bai=RAWDIR+"/{sample}.Aligned{ext}.bam.bai"
+    output: RAWDIR+"/{sample}.Aligned{ext}.bam.IsoExon", RAWDIR+"/{sample}.Aligned{ext}.bam.IsoMatrix"
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','IsoModule'),
-            mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','IsoModule')
+            mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','IsoModule'),
+            gtf = "level_1_protein_coding_genes.gtf"
     shell: """
             ./batchit submit \
             --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-iso:latest  \
@@ -208,7 +209,7 @@ rule isomodule:
             --jobname isomodule_{wildcards.sample} \
             --cpus 16 \
             --mem {params.mb} \
-            --envvars "sample={wildcards.sample}" "project=SRP091981" "bytes={params.bytes}" \
+            --envvars "sample={wildcards.sample}.Aligned{wildcards.ext}" "project=SRP091981" "bytes={params.bytes}" "gtf={params.gtf}" \
             --ebs /mnt/my-ebs:500:st1:ext4 \
             isomodule.sh
             touch {output}
@@ -216,8 +217,8 @@ rule isomodule:
 
 
 rule rmatsmodule:
-    input: untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoMatrix", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
-           treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116"))
+    input: untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.subsampled.bam.IsoMatrix", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
+           treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.subsampled.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116"))
 
            
 rule rmatsprep:
@@ -248,7 +249,27 @@ rule bamindex:
             samtoolsindex.sh
             touch {output}
             """
-            
+
+rule subsample:
+    input: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",
+    output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.subsampled.bam",RAWDIR+"/{sample}.Aligned.sortedByCoord.out.subsampled.bam.bai"
+    params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','samtoolssubsample'),
+            mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','samtoolssubsample'),
+            subfraction = 0.001
+    shell: """
+            ./batchit submit \
+            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/samtools:latest  \
+            --role ecsTaskRole  \
+            --queue when_you_get_to_it \
+            --jobname samtoolssubsample_{wildcards.sample} \
+            --cpus 1 \
+            --mem {params.mb} \
+            --envvars "sample={wildcards.sample}" "project=SRP091981" "bytes={params.bytes}" "subfraction={params.subfraction}" \
+            --ebs /mnt/my-ebs:500:st1:ext4 \
+            subsample.sh
+            touch {output}
+            """
+
 rule rmatsiso:
     input: untreated=expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", ext=['bam','bam.bai'], sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
            treated=expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", ext=['bam','bam.bai'], sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),

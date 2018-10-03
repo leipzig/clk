@@ -50,6 +50,8 @@ def getECS(runName,units,program):
         mb = 192000
     elif program=='samtoolsindex':
         mb = 16000
+    elif program=='samtoolssubsample':
+        mb = 16000
     else:
         raise ValueError
     if units=='bytes':
