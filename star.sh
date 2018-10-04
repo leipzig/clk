@@ -1,7 +1,10 @@
 set -euo pipefail
 cd $TMPDIR
+
 aws s3 cp s3://panorama-clk-repro/${project}/${sample}_1.fastq.gz .
 aws s3 cp s3://panorama-clk-repro/${project}/${sample}_2.fastq.gz .
+
+#https://github.com/ewels/AWS-iGenomes
 aws s3 sync s3://panorama-refs/GRCh38_star/ GRCh38_star/
 
 

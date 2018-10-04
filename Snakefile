@@ -215,10 +215,31 @@ rule isomodule:
             touch {output}
             """
 
+rule isomodulefrommanifest:
+    input: untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
+           treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),
+           manifest=RAWDIR+"/untreatedvslowdose.manifest.txt"
+    #output: RAWDIR+"/{sample}.Aligned{ext}.bam.IsoExon", RAWDIR+"/{sample}.Aligned{ext}.bam.IsoMatrix"
+    params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
+            mb = lambda wildcards: metautils.getECS('foo','mb','IsoModule'),
+            gtf = "level_1_protein_coding_genes.gtf"
+    shell: """
+            ./batchit submit \
+            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-source:latest  \
+            --role ecsTaskRole  \
+            --queue when_you_get_to_it \
+            --jobname isomodule_isomanifest \
+            --cpus 16 \
+            --mem {params.mb} \
+            --envvars "untreated={input.untreated}" "treated={input.treated}" "manifest={input.manifest}" "project=SRP091981" "bytes={params.bytes}" "gtf={params.gtf}" \
+            --ebs /mnt/my-ebs:500:st1:ext4 \
+            isomanifest.sh
+            #touch {output}
+            """
 
 rule rmatsmodule:
-    input: untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.subsampled.bam.IsoMatrix", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
-           treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.subsampled.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116"))
+    input: untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoMatrix", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
+           treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116"))
 
            
 rule rmatsprep:
