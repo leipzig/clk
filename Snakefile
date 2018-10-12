@@ -3,6 +3,7 @@ from snakemake.utils import R
 from utils import metautils
 import yaml
 import boto3
+import re
 
 
 #snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 20 --cluster-config slurm_cluster_spec.yaml onemini
@@ -68,7 +69,7 @@ rule getapair:
         #shell("gzip -1 {0}/{1}_1.fastq {0}/{1}_2.fastq".format(RAWDIR,wildcards.accession))
 
 rule getasingleton:
-    output: RAWDIR+"/{accession,SRR\d+}.fastq.gz"
+    output: RAWDIR+"/{accessiondf -h }.fastq.gz"
     run:
         print("fastq-dump --split-3 --gzip {0} -O {1}".format(wildcards.accession,RAWDIR))
         shell("fastq-dump --split-3 --gzip {0} -O {1}".format(wildcards.accession,RAWDIR))
@@ -190,10 +191,18 @@ rule minimap_map:
 #         cp {input} {output}
 #         """
 
-rule untreatedvslowdose:
-    output: "untreatedvslowdose.manifest.txt"
+#snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  \
+#panorama-clk-repro/SRP091981/untreated_vs_0.05.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_0.1.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_0.5.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_1.0.manifest.txt
+#panorama-clk-repro/SRP091981/untreated_vs_5.0.manifest.txt
+#panorama-clk-repro/SRP091981/untreated184_vs_0.5-184.manifest.txt
+#panorama-clk-repro/SRP091981/untreated184_vs_1.0-184.manifest.txt
+#panorama-clk-repro/SRP091981/untreated184_vs_5.0-184.manifest.txt
+
+rule anymanifest:
+    output: manifest=RAWDIR+"/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}.manifest.txt"
     run:
-        metautils.twoSampleComparisonManifest('Untreated HCT116','0.5 uM T3 treated HCT116',"untreatedvslowdose.manifest.txt")
+        metautils.twoSampleComparisonManifest(metautils.dosageTable[wildcards.sample1],metautils.dosageTable[wildcards.sample2],output.manifest)
+
 
 rule isomodule:
     input: bam=RAWDIR+"/{sample}.Aligned{ext}.bam", bai=RAWDIR+"/{sample}.Aligned{ext}.bam.bai"
@@ -215,26 +224,57 @@ rule isomodule:
             touch {output}
             """
 
+# myoutput/
+# myoutput/ISO_plot
+# myoutput/ISO_module
+# myoutput/ISO_module/PC3E-1.sorted.bam.IsoExon
+# myoutput/ISO_module/GS689-3.sorted.bam.IsoMatrix
+# myoutput/ISO_module/PC3E-2.sorted.bam.IsoMatrix
+# myoutput/ISO_module/GS689-2.sorted.bam.IsoMatrix
+# myoutput/ISO_module/PC3E-3.sorted.bam.IsoMatrix
+# myoutput/ISO_module/GS689-1.sorted.bam.IsoMatrix
+# myoutput/ISO_module/PC3E-1.sorted.bam.IsoMatrix
+# myoutput/ISO_classify
+# myoutput/ISO_classify/ISO_module_coor.txt
+# myoutput/ISO_classify/ISO_module_gene.txt
+# myoutput/ISO_classify/ISO_module_type_summary.txt
+# myoutput/ISO_classify/ISO_module_type.txt
+# myoutput/EM_out
+# myoutput/EM_out/EM.out
+#untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", sampleids=metautils.getRunsFromSampleName(lambda wildcards:metautils.getfulldosagename(wildcards.sample1)), ext=['bam','bam.bai']),
+#treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", sampleids=metautils.getRunsFromSampleName(lambda wildcards:metautils.getfulldosagename(wildcards.sample2)), ext=['bam','bam.bai']),
+
+#snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 50 --cluster-config slurm_cluster_spec.yaml \
+#panorama-clk-repro/SRP091981/untreated_vs_0.1/done \
+#panorama-clk-repro/SRP091981/untreated_vs_0.05/done \
+#panorama-clk-repro/SRP091981/untreated_vs_1.0/done \
+#panorama-clk-repro/SRP091981/untreated_vs_0.5/done \
+#panorama-clk-repro/SRP091981/untreated_vs_5.0/done \
+#panorama-clk-repro/SRP091981/untreated184_vs_0.5-184/done \
+#panorama-clk-repro/SRP091981/untreated184_vs_1.0-184/done \
+#panorama-clk-repro/SRP091981/untreated184_vs_5.0-184/done
+
 rule isomodulefrommanifest:
-    input: untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
-           treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),
-           manifest=RAWDIR+"/untreatedvslowdose.manifest.txt"
-    #output: RAWDIR+"/{sample}.Aligned{ext}.bam.IsoExon", RAWDIR+"/{sample}.Aligned{ext}.bam.IsoMatrix"
+    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample1),include_s3=RAWDIR),
+           treated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample2),include_s3=RAWDIR),
+           manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
+    output: manifest=RAWDIR+"/{sample1}_vs_{sample2}/done"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
             mb = lambda wildcards: metautils.getECS('foo','mb','IsoModule'),
-            gtf = "level_1_protein_coding_genes.gtf"
+            gtf = "gencode.v28.annotation.gtf",
+            jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2)
     shell: """
             ./batchit submit \
             --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-source:latest  \
             --role ecsTaskRole  \
             --queue when_you_get_to_it \
-            --jobname isomodule_isomanifest \
+            --jobname {params.jobname} \
             --cpus 16 \
             --mem {params.mb} \
-            --envvars "untreated={input.untreated}" "treated={input.treated}" "manifest={input.manifest}" "project=SRP091981" "bytes={params.bytes}" "gtf={params.gtf}" \
+            --envvars "untreated={input.untreated}" "treated={input.treated}" "manifest={input.manifest}" "comparison={wildcards.sample1}_vs_{wildcards.sample2}" "project=SRP091981" "bytes={params.bytes}" "gtf={params.gtf}" \
             --ebs /mnt/my-ebs:500:st1:ext4 \
             isomanifest.sh
-            #touch {output}
+            touch {output}
             """
 
 rule rmatsmodule:

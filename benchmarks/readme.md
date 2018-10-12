@@ -18,7 +18,7 @@ above takes about 7 minutes with `level_1_protein_coding_genes.gtf` which has 55
 
 with 
 ```
-time docker run -v $PWD:/rMATS-ISO-master/work quay.io/leipzig/rmats-iso python ./rMATS-ISO.py --in-gtf work/Homo_sapiens.GRCh38.87.gtf --in-bam work/untreatedvslowdose.manifest.txt -o /work
+time docker run -v $PWD:/rMATS-ISO-master/work -w /rMATS-ISO-master/work quay.io/leipzig/rmats-iso python /rMATS-ISO-master/rMATS-ISO.py --in-gtf gencode.v28.basic.annotation.gtf --in-bam untreatedvslowdose.manifest.txt -o .
 ```
 
 
@@ -47,6 +47,10 @@ Homo_sapiens.GRCh38.87.gtf
   74244 stop_codon
  133938 three_prime_utr
  198002 transcript
+```
+
+These I derived from filtering Gencode:
+```
 level_1_genes.gtf
   30336 CDS
   50534 exon
