@@ -65,6 +65,10 @@ RUN chmod +x /usr/bin/batchit
 RUN pip install --upgrade pip
 RUN pip install wheel awscli
 
+#datadog monitoring
+DD_API_KEY=6be8e34a9d8597f921b79a97d6985305 bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
+
+
 WORKDIR /rMATS-ISO-master
 
 CMD ["/bin/bash"]

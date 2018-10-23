@@ -144,20 +144,72 @@ control<-"untreated"
 em<-read.table(paste0(control,'_vs_',dose,'/EM_out/EM.out'),comment.char = '',strip.white = TRUE, header=TRUE)
 coor<-read.table(paste0(control,'_vs_',dose,'/ISO_classify/ISO_module_coor.txt'),comment.char = '',strip.white = TRUE, header=FALSE,sep=":",col.names = c("chr","strand","start","end"))
 gene<-read.table(paste0(control,'_vs_',dose,'/ISO_classify/ISO_module_gene.txt'),comment.char = '',strip.white = TRUE, header=FALSE,sep="_",col.names= c("asm","hugo","ensg"))
-#type<-read.table(paste0(control,'_vs_',dose,'/ISO_classify/ISO_module_type.txt'),comment.char = '',strip.white = TRUE, header=FALSE)
+type<-read.table(paste0(control,'_vs_',dose,'/ISO_classify/ISO_module_type.txt'),comment.char = '',strip.white = TRUE, header=FALSE)
 #typesummary<-
 ```
 
-#### Top hit: ASM3356
-
-In teh 
-```{r}
-knitr::kable(em %>% filter(test_statistic==max(em$test_statistic,na.rm = TRUE)))
-gene %>% filter(asm=='ASM3356')
-coords<-coor[which(em$ASM_name=='ASM#3356'),]
+### Number of isoforms in T3 0.5 clusters
+```{r iso}
+ggplot(em,aes(na.omit(total_isoforms)))+geom_histogram(binwidth=1)+scale_x_continuous(breaks = scales::pretty_breaks(n = 10))
 ```
 
+### Number of exons in T3 0.5 clusters
+```{r exons}
+ggplot(em,aes(na.omit(total_exons)))+geom_histogram(binwidth=1)+scale_x_continuous(breaks = scales::pretty_breaks(n = 25))
+```
+
+### Top 10 simple events
+
+Look at only those clusters with 3 or fewer isoforms, 4 or fewer exons and rank by the lowest paired isoform pvalue among them.
+
 ```{r}
+strmin<-function(x){
+  if(is.na(x)){return(NA)}
+  if(x=='NA,NA'){return(NA)}
+  return(min(as.numeric((str_split(x,',',simplify = TRUE)))))
+}
+
+em %>% filter(total_isoforms<=3,total_exons<=4) %>% arrange(splitpval) %>% head(n=10) -> simple_events
+
+```
+
+### Top 10 by test statistic
+```{r}
+knitr::kable(em %>% filter(test_statistic==max(em$test_statistic,na.rm = TRUE)))
+em %>% filter(test_statistic==max(em$test_statistic,na.rm = TRUE)) %>% pull(ASM_name) %>% as.character() -> top_hit
+str_replace(top_hit,'#','') -> top_hit_nohash
+gene %>% filter(asm==top_hit_nohash)
+coords<-coor[which(em$ASM_name==top_hit),]
+```
+
+### Find conjoined genes
+```{r}
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+biocLite("TxDb.Hsapiens.UCSC.hg38.knownGene")
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+txdb<-TxDb.Hsapiens.UCSC.hg38.knownGene
+genes_gr <- genes(txdb)
+#don't want overlapping genes
+reduce(genes_gr) -> genes_reduced
+ir<-IRanges(start=coor$start,end = coor$end)
+coor_gr<-GRanges(seqnames = coor$chr,ranges=ir,strand = coor$strand)
+GenomicRanges::findOverlaps(subject=genes_reduced,query=coor_gr) -> hits
+as.data.frame(hits) %>% group_by(queryHits) %>% summarize(nhit=n()) %>% filter(nhit>1) %>% pull(queryHits) -> cg
+
+#now with the subset of ranges that span more than one gene hit up teh original txdb so we can get real gene ids
+cg_gr<-coor_gr[cg,]
+GenomicRanges::findOverlaps(subject=genes_gr,query=cg_gr) -> cg_hits
+
+genes_gr[subjectHits(cg_hits),"gene_id"]
+
+#get teh gene ids
+txtable = select(txdb, keys=cg_hits, columns="SYMBOL", keytype="GENEID")
+select(org.Hs.eg.db, geneIDs, "SYMBOL")
+```
+
+#### Top hit: `r top_hit`
+
+```{r }
 dose="0.5"
 #treated
 metadata %>% filter(str_detect(SampleName,dose)) %>% filter(str_detect(SampleName,'T3')) %>% filter(Platform=='ILLUMINA') %>% filter(str_detect(SampleName,'HCT116'))  %>% dplyr::pull(Run) -> treated
@@ -166,14 +218,26 @@ metadata %>% filter(str_detect(SampleName,'Untreated')) %>% filter(Platform=='IL
 #aws s3 cp s3://panorama-clk-repro/SRP091981/SRR5009487.Aligned.sortedByCoord.out.bam SRP091981/
 atreated<-"SRR5009487"
 auntreated<-"SRR5009474"
-afrom <- coords$start - 10000
-ato <- coords$end + 10000
-chr <- as.character(coords$chr)
-treatedTrack <- AlignmentsTrack(paste0("../SRP091981/",atreated,".Aligned.sortedByCoord.out.bam"), isPaired = TRUE,name = metadata %>% filter(Run==atreated) %>% pull(SampleName) %>% as.character())
-untreatedTrack  <- AlignmentsTrack(paste0("../SRP091981/",auntreated,".Aligned.sortedByCoord.out.bam"), isPaired = TRUE, name = metadata %>% filter(Run==auntreated) %>% pull(SampleName) %>% as.character())
-options(ucscChromosomeNames=TRUE)
 
-bmt <- BiomartGeneRegionTrack(genome = "hg38", name="ENSEMBL", chromosome = chr, start = afrom, end = ato,biomart=biomaRt::useMart(biomart="ensembl",dataset="hsapiens_gene_ensembl") , stacking = "full")
-
-plotTracks(c(bmt,untreatedTrack,treatedTrack), from = afrom, to = ato, chromosome = chr, type = c("coverage","sashimi"))
+plot_window<-function(asm,type){
+  str_replace(asm,'#','') -> asm_nohash
+  gene %>% filter(asm==asm_nohash)
+  coords<-coor[which(em$ASM_name==asm),]
+  afrom <- coords$start - 10000
+  ato <- coords$end + 10000
+  chr <- as.character(coords$chr)
+  treatedName <- metadata %>% filter(Run==atreated) %>% pull(SampleName) %>% as.character() %>% str_replace_all(' ','_')
+  untreatedName <- metadata %>% filter(Run==auntreated) %>% pull(SampleName) %>% as.character() %>% str_replace_all(' ','_')
+  if(type=='gviz'){
+    treatedTrack <- AlignmentsTrack(paste0("../SRP091981/",atreated,".Aligned.sortedByCoord.out.bam"), isPaired = TRUE,name = treatedName)
+    untreatedTrack  <- AlignmentsTrack(paste0("../SRP091981/",auntreated,".Aligned.sortedByCoord.out.bam"), isPaired = TRUE, name = untreatedName)
+    options(ucscChromosomeNames=TRUE)
+    
+    bmt <- BiomartGeneRegionTrack(genome = "hg38", name="ENSEMBL", chromosome = chr, start = afrom, end = ato,biomart=biomaRt::useMart(biomart="ensembl",dataset="hsapiens_gene_ensembl") , stacking = "full")
+    plotTracks(c(bmt,untreatedTrack,treatedTrack), from = afrom, to = ato, chromosome = chr, type = c("coverage","sashimi"))
+  }else{
+    sashimiPlot<-paste0("rmats2sashimiplot --b1 ",paste0("../SRP091981/",atreated,".Aligned.sortedByCoord.out.bam")," --b2 ",paste0("../SRP091981/",auntreated,".Aligned.sortedByCoord.out.bam")," -c ",chr,":",coords$strand,":",afrom,":",ato,":../GRCh38_star/gencode.v28.annotation.gtf --l1 ",treatedName," --l2 ",untreatedName, " --exon_s 1 --intron_s 5 -o sashimiout")
+    cat(sashimiPlot)
+  }
+}
 ```

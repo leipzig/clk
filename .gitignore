@@ -3,3 +3,4 @@ SRR500*
 GRCh38_star/
 GRCh38_minimap/
 .snakemake/
+benchmarks
