@@ -1,0 +1,6 @@
+yum install gcc zlib-devel bzip2-devel xz-devel libcurl-devel
+
+
+sudo file -s /dev/nvme1n1
+created an instance c5.4xlarge, with 100G root and 100G file storage
+ sudo mkdir /datastore
