@@ -1,0 +1,4 @@
+#!/bin/sh
+
+s3cmd ls --recursive s3://panorama-clk-repro/SRP091981/ |  grep '.bam' | ruby -rdate -ne 'date, time, size, uri = $_.split; puts uri if size == "0"' | xargs s3cmd del
+ls -s panorama-clk-repro/SRP091981/ | grep .bam | ruby -ne 'size, name = $_.split; puts name if size == "0"' | xargs -I {} rm 'panorama-clk-repro/SRP091981/{}'

@@ -1,6 +1,14 @@
 panorama-clk-repro
 SRR500*
+GRCh37
 GRCh38_star/
 GRCh38_minimap/
 .snakemake/
 benchmarks
+results/
+*.manifest.txt
+_STARtmp/
+Log.out
+Log.progress.out
+logs/
+refs/
