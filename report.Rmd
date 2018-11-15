@@ -24,7 +24,7 @@ library(dplyr)
 library(stringr)
 library(biomaRt)
 library(Gviz)
-metadata<-read.csv("../metadata.csv")
+metadata<-read.csv("metadata.csv")
 ```
 
 `nrow(metadata)` were obtained
@@ -98,8 +98,9 @@ control<-"untreated"
 ```{r plotdoseresponse}
 em_all<-NULL
 for(dose in doses){
-  em<-read.table(paste0(control,'_vs_',dose,'/EM_out/EM.out'),comment.char = '',strip.white = TRUE, header=TRUE)
-  em$dose<-paste0(control,'_vs_',dose)
+  em<-read.table(paste0("results/",control,'_vs_',dose,'/EM_out/EM.out'),comment.char = '',strip.white = TRUE, header=TRUE)
+  em$dose<-as.numeric(dose)
+  em$dosestr<-paste0(control,'_vs_',dose)
   if(!is.null(em_all)){
     em_all<-rbind(em_all,em)
   }else{
@@ -109,7 +110,7 @@ for(dose in doses){
 
 #set p_value of 0 to a token dummy minimum, display only highly significant assemblies
 #ggplot(em_all %>% filter(!is.na(p_value)) %>% filter(p_value<=0.01) %>% rowwise() %>% dplyr::mutate(p_value = max(p_value,1e-16)),aes(-log(p_value)))+geom_histogram(binwidth=1)+facet_wrap(.~dose)
-ggplot(em_all %>% filter(!is.na(p_value)) %>% rowwise() %>% mutate(sig=ifelse(p_value<=pthresh,paste0("p<=",pthresh),paste0("p>",pthresh))),aes(sig))+geom_bar(stat="count")+facet_wrap(.~dose)
+ggplot(em_all %>% filter(!is.na(p_value)) %>% rowwise() %>% mutate(sig=ifelse(p_value<=pthresh,paste0("p<=",pthresh),paste0("p>",pthresh))),aes(sig,fill=dose))+geom_bar(stat="count")+ylab("Number of ASM clusters")+xlab("Sig level")+facet_wrap(.~dosestr)
 ```
 
 
@@ -141,10 +142,10 @@ control<-"untreated184"
 ```{r doi}
 dose<-c('0.5')
 control<-"untreated"
-em<-read.table(paste0(control,'_vs_',dose,'/EM_out/EM.out'),comment.char = '',strip.white = TRUE, header=TRUE)
-coor<-read.table(paste0(control,'_vs_',dose,'/ISO_classify/ISO_module_coor.txt'),comment.char = '',strip.white = TRUE, header=FALSE,sep=":",col.names = c("chr","strand","start","end"))
-gene<-read.table(paste0(control,'_vs_',dose,'/ISO_classify/ISO_module_gene.txt'),comment.char = '',strip.white = TRUE, header=FALSE,sep="_",col.names= c("asm","hugo","ensg"))
-type<-read.table(paste0(control,'_vs_',dose,'/ISO_classify/ISO_module_type.txt'),comment.char = '',strip.white = TRUE, header=FALSE)
+em<-read.table(paste0("results/",control,'_vs_',dose,'/EM_out/EM.out'),comment.char = '',strip.white = TRUE, header=TRUE)
+coor<-read.table(paste0("results/",control,'_vs_',dose,'/ISO_classify/ISO_module_coor.txt'),comment.char = '',strip.white = TRUE, header=FALSE,sep=":",col.names = c("chr","strand","start","end"))
+gene<-read.table(paste0("results/",control,'_vs_',dose,'/ISO_classify/ISO_module_gene.txt'),comment.char = '',strip.white = TRUE, header=FALSE,sep="_",col.names= c("asm","hugo","ensg"))
+type<-read.table(paste0("results/",control,'_vs_',dose,'/ISO_classify/ISO_module_type.txt'),comment.char = '',strip.white = TRUE, header=FALSE)
 #typesummary<-
 ```
 
@@ -169,7 +170,7 @@ strmin<-function(x){
   return(min(as.numeric((str_split(x,',',simplify = TRUE)))))
 }
 
-em %>% filter(total_isoforms<=3,total_exons<=4) %>% arrange(splitpval) %>% head(n=10) -> simple_events
+em %>% filter(total_isoforms<=3,total_exons<=4) %>% arrange(p_value) %>% head(n=10) -> simple_events
 
 ```
 
@@ -184,8 +185,6 @@ coords<-coor[which(em$ASM_name==top_hit),]
 
 ### Find conjoined genes
 ```{r}
-library(TxDb.Hsapiens.UCSC.hg38.knownGene)
-biocLite("TxDb.Hsapiens.UCSC.hg38.knownGene")
 library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 txdb<-TxDb.Hsapiens.UCSC.hg38.knownGene
 genes_gr <- genes(txdb)

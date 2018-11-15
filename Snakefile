@@ -60,7 +60,7 @@ rule pacbio_lr2rmats:
 rule allfiles:
     input: expand(RAWDIR+"/{sampleids}_{pair}.fastq.gz", sampleids=ILLUMINA_SRA, pair=[1,2]), expand(RAWDIR+"/{sampleids}.fastq.gz", sampleids=PACBIO_SRA)
 
-rule getapair:
+rule fetchpair_from_sra:
     output: RAWDIR+"/{accession}_1.fastq.gz", RAWDIR+"/{accession}_2.fastq.gz"
     run:
         print("fastq-dump --split-3 --gzip {0} -O {1}".format(wildcards.accession,RAWDIR))
@@ -117,40 +117,6 @@ rule star_align:
             """
 #> {wildcards.sample}.runid 2>&1 
 
-rule helloworld:
-    output: "helloworld.txt" #PROJECT_BUCKET+"/hello.txt"
-    shell: """
-            ./batchit submit \
-            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/star:latest  \
-            --role ecsTaskRole  \
-            --queue when_you_get_to_it \
-            --jobname hello \
-            --cpus 1 \
-            --mem 1000 \
-            --ebs /mnt/my-ebs:500:st1:ext4 \
-            hello.sh
-            """
-
-#output: PROJECT_BUCKET+"/hello_s3.txt")
-
-rule hellos3:
-    output: "hello_s3.txt"
-    shell:
-        """
-        echo "hello world" > {output}
-        aws s3 cp {output} s3://panorama-clk-repro/hello_s3.txt
-        # echo "hello world" > hello_s3_tmp.txt
-        # aws s3 cp hello_s3_tmp.txt s3://panorama-clk-repro/hello_s3.txt
-        # touch {output}
-        # echo 1234 >&1
-        """
-#cp hello_s3_tmp.txt {output}
-#echo 1234 >&1
-rule hellosimple:
-    output: "hellosimple.txt"
-    shell: """
-            touch hellosimple.txt
-            """
 
 # minimap mapping for long reads
 rule minimap_map:
@@ -183,13 +149,6 @@ rule minimap_map:
         """
 
 
-# rule fetch_alignment:
-#     input: s3_boto2.remote(PROJECT_BUCKET+"/"+RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",keep_local=True)
-#     output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam"
-#     shell:
-#         """
-#         cp {input} {output}
-#         """
 
 #snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  \
 #panorama-clk-repro/SRP091981/untreated_vs_0.05.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_0.1.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_0.5.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_1.0.manifest.txt
@@ -198,13 +157,13 @@ rule minimap_map:
 #panorama-clk-repro/SRP091981/untreated184_vs_1.0-184.manifest.txt
 #panorama-clk-repro/SRP091981/untreated184_vs_5.0-184.manifest.txt
 
-rule anymanifest:
+rule generate_two_way_manifest:
     output: manifest=RAWDIR+"/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}.manifest.txt"
     run:
         metautils.twoSampleComparisonManifest(metautils.dosageTable[wildcards.sample1],metautils.dosageTable[wildcards.sample2],output.manifest)
 
 
-rule isomodule:
+rule run_rmatsiso_from_bam:
     input: bam=RAWDIR+"/{sample}.Aligned{ext}.bam", bai=RAWDIR+"/{sample}.Aligned{ext}.bam.bai"
     output: RAWDIR+"/{sample}.Aligned{ext}.bam.IsoExon", RAWDIR+"/{sample}.Aligned{ext}.bam.IsoMatrix"
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','IsoModule'),
@@ -254,7 +213,9 @@ rule isomodule:
 #panorama-clk-repro/SRP091981/untreated184_vs_1.0-184/done \
 #panorama-clk-repro/SRP091981/untreated184_vs_5.0-184/done
 
-rule isomodulefrommanifest:
+#snakemake --force --dag --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 50 --cluster-config slurm_cluster_spec.yaml  panorama-clk-repro/SRP091981/untreated_vs_0.5/done | dot -Tpdf > dag.pdf       
+
+rule run_rmatsiso_from_manifest:
     input: untreated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample1),include_s3=RAWDIR),
            treated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample2),include_s3=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
@@ -277,21 +238,29 @@ rule isomodulefrommanifest:
             touch {output}
             """
 
-rule rmatsmodule:
-    input: untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoMatrix", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
-           treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116"))
-
-           
-rule rmatsprep:
-    input: untreated=s3_boto2.remote(expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),keep_local=True),
-           treated=s3_boto2.remote(expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),keep_local=True),
-           manifest="untreatedvslowdose.manifest.txt"
-    output: "prepped"
-    shell: "ls -alt {input}; touch prepped"
-
-    # input: untreated=s3_boto2.remote(expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),keep_local=True),
-    #       treated=s3_boto2.remote(expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),keep_local=True),
-    
+rule run_rmatsturbo_from_manifest:
+    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample1),include_s3=RAWDIR),
+           treated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample2),include_s3=RAWDIR),
+           manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
+    output: manifest=RAWDIR+"-turbo/{sample1}_vs_{sample2}/done"
+    params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
+            mb = lambda wildcards: metautils.getECS('foo','mb','IsoModule'),
+            gtf = "gencode.v28.annotation.gtf",
+            jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2)
+    shell: """
+            ./batchit submit \
+            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-turbo:latest  \
+            --role ecsTaskRole  \
+            --queue when_you_get_to_it \
+            --jobname {params.jobname} \
+            --cpus 16 \
+            --mem {params.mb} \
+            --envvars "untreated={input.untreated}" "treated={input.treated}" "manifest={input.manifest}" "comparison={wildcards.sample1}_vs_{wildcards.sample2}" "project=SRP091981-turbo" "bytes={params.bytes}" "gtf={params.gtf}" \
+            --ebs /mnt/my-ebs:500:st1:ext4 \
+            turbomanifest.sh
+            touch {output}
+            """
+            
 rule bamindex:
     input: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",
     output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam.bai"
