@@ -1,6 +1,6 @@
 import pandas
 
-st = pandas.read_csv("metadata.csv",
+st = pandas.read_csv("metadata/metadata.csv",
                      dtype={'Run,': object,
                             'ReleaseDate,': object, 'LoadDate,': object, 'spots,': object, 'bases,': object,
                             'spots_with_mates,': object, 'avgLength,': object, 'size_MB,': object, 'AssemblyName,': object,
@@ -24,7 +24,7 @@ def pacbioRuns():
 
 
 def getType(runName):
-    getProperty(runName, 'Platform')
+    return(getProperty(runName, 'Platform'))
 
 
 def getProperty(runName, column):
@@ -57,6 +57,8 @@ def getECS(runName, units, program):
     elif program == 'samtoolsindex':
         mb = 16000
     elif program == 'samtoolssubsample':
+        mb = 16000
+    elif program == 'rmats':
         mb = 16000
     else:
         raise ValueError
