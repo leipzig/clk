@@ -111,5 +111,5 @@ def getfulldosagename(nickname):
     return(dosageTable[nickname])
 
 
-dosageTable = {'untreated': 'Untreated HCT116', '0.5': '0.5 uM T3 treated HCT116', '0.1': '0.1 uM T3 treated HCT116', '0.05': '0.05 uM T3 treated HCT116', '1.0': '1.0 uM T3 treated HCT116','5.0':'5 uM T3 treated HCT116',
+dosageTable = {'untreated': 'Untreated HCT116', 'treated': ['0.5','0.1','0.05','1.0'], '0.5': '0.5 uM T3 treated HCT116', '0.1': '0.1 uM T3 treated HCT116', '0.05': '0.05 uM T3 treated HCT116', '1.0': '1.0 uM T3 treated HCT116','5.0':'5 uM T3 treated HCT116',
                'untreated184': 'Untreated 184-hTert', '0.5-184': '0.5 uM T3 treated 184-hTert', '1.0-184': '1.0 uM T3 treated 184-hTert', '5.0-184': '5.0 uM T3 treated 184-hTert'}
