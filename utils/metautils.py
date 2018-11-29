@@ -95,23 +95,28 @@ def getBamsFromSampleName(samp, include_s3=None, include_bai=True):
         exts = ['bam', 'bam.bai']
     else:
         exts = ['bam']
-    run = getRunsFromSampleName(samp)
+    runs = getRunsFromSampleName(samp)
     if include_s3:
         bams = ["{0}/{1}.Aligned.sortedByCoord.out.{2}".format(
-            include_s3, replicate, ext) for replicate in run for ext in exts]
+            include_s3, replicate, ext) for replicate in runs for ext in exts]
     else:
         bams = ["{0}.Aligned.sortedByCoord.out.{1}".format(
-            replicate, ext) for replicate in run for ext in exts]
+            replicate, ext) for replicate in runs for ext in exts]
     return(bams)
 
 
 def getRunsFromSampleName(samp):
-    return(st.loc[(st['SampleName'] == samp) & (st['Platform'] == 'ILLUMINA')]['Run'].tolist())
+    #accept either dosage nicknames or the actual sample name
+    if samp.lower() in dosageTable:
+        return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) & (st['Platform'] == 'ILLUMINA')]['Run'].tolist())
+    else:
+        return(st.loc[(st['SampleName']==samp) & (st['Platform'] == 'ILLUMINA')]['Run'].tolist())
 
 
 def getfulldosagename(nickname):
     return(dosageTable[nickname])
 
 
-dosageTable = {'untreated': 'Untreated HCT116', 'treated': ['0.5','0.1','0.05','1.0'], '0.5': '0.5 uM T3 treated HCT116', '0.1': '0.1 uM T3 treated HCT116', '0.05': '0.05 uM T3 treated HCT116', '1.0': '1.0 uM T3 treated HCT116','5.0':'5 uM T3 treated HCT116',
-               'untreated184': 'Untreated 184-hTert', '0.5-184': '0.5 uM T3 treated 184-hTert', '1.0-184': '1.0 uM T3 treated 184-hTert', '5.0-184': '5.0 uM T3 treated 184-hTert'}
+dosageTable = {'untreated': ['Untreated HCT116'],  '0.5': ['0.5 uM T3 treated HCT116'], '0.1': ['0.1 uM T3 treated HCT116'], '0.05': ['0.05 uM T3 treated HCT116'], '1.0': ['1.0 uM T3 treated HCT116'],'5.0':['5 uM T3 treated HCT116'],
+               'untreated184': ['Untreated 184-hTert'], '0.5-184': ['0.5 uM T3 treated 184-hTert'], '1.0-184': ['1.0 uM T3 treated 184-hTert'], '5.0-184': ['5.0 uM T3 treated 184-hTert']}
+dosageTable['treated']=dosageTable['0.5']+dosageTable['0.1']+dosageTable['0.05']+dosageTable['1.0']

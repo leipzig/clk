@@ -24,7 +24,7 @@ s3_boto2.keep_local=True #Keep local copies of remote input files
 LOCAL_SCRATCH = "/scratch"
 RAWDIR="SRP091981"
 PROCESSDIR="process"
-SRAFILES = [line.rstrip() for line in open("SraAccList.txt")]
+SRAFILES = [line.rstrip() for line in open("metadata/SraAccList.txt")]
 ILLUMINA_SRA = metautils.illuminaRuns()
 PACBIO_SRA = metautils.pacbioRuns()
 
@@ -160,7 +160,7 @@ rule minimap_map:
 rule generate_two_way_manifest:
     output: manifest=RAWDIR+"/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}.manifest.txt"
     run:
-        metautils.twoSampleComparisonManifest(metautils.dosageTable[wildcards.sample1],metautils.dosageTable[wildcards.sample2],output.manifest)
+        metautils.twoSampleComparisonManifest(wildcards.sample1,wildcards.sample2,output.manifest)
 
 
 rule run_rmatsiso_from_bam:
@@ -239,8 +239,8 @@ rule run_rmatsiso_from_manifest:
             """
 
 rule run_rmatsturbo_from_manifest:
-    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample1),include_s3=RAWDIR),
-           treated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample2),include_s3=RAWDIR),
+    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,include_s3=RAWDIR),
+           treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,include_s3=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
     output: manifest=RAWDIR+"-turbo/{sample1}_vs_{sample2}/done"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
