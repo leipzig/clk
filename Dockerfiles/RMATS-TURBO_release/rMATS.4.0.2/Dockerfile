@@ -15,26 +15,35 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     apt-transport-https \
     build-essential \
     bzip2 \
+    cmake \
     curl \
     g++ \
+    gfortran \
     git \
     hdf5-helpers \
     hdf5-tools \
     less \
+    libblas-dev \
     libbz2-dev \
     libcurl4-openssl-dev \
+    libgsl-dev \
+    libgsl0-dev \
     libhdf5-dev \
+    liblapack-dev \
     liblzma-dev \
     libnss-sss \
     libpng-dev \
     libssl-dev \
     libxml2-dev \
+    libz-dev
+    libz-dev \
     make \
     ncurses-dev \
     pkg-config \
-    python2.7 \
+    python-numpy \
     python-pip \
     python-setuptools \
+    python2.7 \
     python2.7-dev \
     python3-pip \
     python3-setuptools \
@@ -46,13 +55,6 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     zip \
     zlib1g-dev
 
-RUN apt-get install -y --no-install-recommends \
-    libblas-dev \
-    liblapack-dev \
-    libgsl0-dev \
-    gfortran \
-    cmake \
-    libz-dev
 
 #get a semi-recent version of R (3.4.4)
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
@@ -69,6 +71,10 @@ RUN wget https://sourceforge.net/projects/rnaseq-mats/files/MATS/rMATS.${rmatstu
 RUN gunzip rMATS.${rmatsturbo_version}.tgz
 RUN tar -xvf rMATS.${rmatsturbo_version}.tar
 
+#rmats-4.0.2 compiled with old libgsl dependency, consider replacing
+#https://groups.google.com/forum/#!topic/rmats-user-group/FOrCUW8IvtY
+RUN export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/
+RUN ln -s /usr/lib/x86_64-linux-gnu/libgsl.so /usr/lib/x86_64-linux-gnu/libgsl.so.0
 
 #use these for aws stuff
 RUN wget -qO /usr/bin/batchit https://github.com/base2genomics/batchit/releases/download/v0.4.2/batchit
