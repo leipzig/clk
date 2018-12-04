@@ -2,22 +2,23 @@ set -euo pipefail
 cd $TMPDIR
 
 echo "downloading bams.."
-for f in ${untreated}; do aws s3 cp s3://$f .; done;
-for f in ${treated}; do aws s3 cp s3://$f .; done;
+for f in ${untreated}; do aws s3 cp --quiet s3://$f .; done;
+for f in ${treated}; do aws s3 cp  --quiet s3://$f .; done;
 
+echo "for f in ${untreated}; do aws s3 cp s3://$f .; done; for f in ${treated}; do aws s3 cp s3://$f .; done;"
 aws s3 cp s3://${manifest} manifest.list
+echo "aws s3 cp s3://${manifest} manifest.list"
 
-echo "I am here:"
 pwd
 ls -alt .
 
 echo "downloading gtf.."
 mkdir GRCh38_star
-aws s3 cp s3://panorama-refs/GRCh38_star/${gtf} GRCh38_star/
+aws s3 cp  --quiet s3://panorama-refs/GRCh38_star/${gtf} GRCh38_star/
 
 echo "download rmats results"
-aws s3 sync s3://panorama-clk-repro/${project}/${comparison} ${comparison}
-
+aws s3 sync s3://panorama-clk-repro/${project}/${comparison} results
+echo "aws s3 sync s3://panorama-clk-repro/${project}/${comparison} ."
     # usage: python rmats.py [options] arg1 arg2
 	
     # optional arguments:
@@ -56,7 +57,17 @@ aws s3 sync s3://panorama-clk-repro/${project}/${comparison} ${comparison}
 		  #                      cutoff < 1.
 		  #--statoff             Turn statistical analysis off.
 
-echo "running rmats.."
+echo "running rmats2sashimi.."
+echo "rmats2sashimiplot --b1 <( python2.7 /manifest_to_csl.py manifest.list 1 . ) \
+                  --b2 <( python2.7 /manifest_to_csl.py manifest.list 2 . ) \
+                  -t SE \
+                  -e SE.MATS.JC.txt \
+                  --l1 ${sample1} \
+                  --l2 ${sample2} \
+                  --exon_s 1 \
+                  --intron_s 5 \
+                  -o sashimi"
+
   #-t eventType	                Type of event from rMATS result used in the 											analysis.
   #                                  eventType is 'SE', 'A5SS', 'A3SS', 'MXE' or 'RI'.
   #                                  'SE' is for skipped exon events, 'A5SS' is for
@@ -68,18 +79,62 @@ echo "running rmats.."
   #  -e eventsFile	                The rMATS output event file (Only if using rMATS
   #                                  format result as event file).
                                     
-python2.7 /rMATS.4.0.2/rMATS-turbo-Linux-UCS4/rmats.py  --gtf GRCh38_star/${gtf} --b1 <( python2.7 /rMATS.4.0.2/rMATS-turbo-Linux-UCS4/manifest_to_csl.py manifest.list 1 . ) --b2 <( python2.7 /rMATS.4.0.2/rMATS-turbo-Linux-UCS4/manifest_to_csl.py manifest.list 2 . ) --od ${comparison}
-rmats2sashimiplot --b1 <( python2.7 /rMATS.4.0.2/rMATS-turbo-Linux-UCS4/manifest_to_csl.py manifest.list 1 . ) \
-                  --b2 <( python2.7 /rMATS.4.0.2/rMATS-turbo-Linux-UCS4/manifest_to_csl.py manifest.list 2 . ) \
-                  -t SE -e ./testData/MATS_output/test_PC3E_GS689.SE.MATS.events.txt
-                  -c chr2:+:10090000:10110000:./testData/ensGene.gff3 \
+#python2.7 /rMATS.4.0.2/rMATS-turbo-Linux-UCS4/rmats.py  --gtf GRCh38_star/${gtf} --b1 <( python2.7 /rMATS.4.0.2/rMATS-turbo-Linux-UCS4/manifest_to_csl.py manifest.list 1 . ) --b2 <( python2.7 /rMATS.4.0.2/rMATS-turbo-Linux-UCS4/manifest_to_csl.py manifest.list 2 . ) --od ${comparison}
+
+#$rmats2sashimiplot --s1 s1_rep1.sam[,s1_rep2.sam]* --s2 s2.rep1.sam[,s2.rep2.sam]* -t eventType -e eventsFile --l1 SampleLabel1 --l2 SampleLabel2 --exon_s exonScale --intron_s intronScale -o outDir
+
+mkdir -p sashimi/SE sashimi/A5SS sashimi/A3SS sashimi/MXE sashimi/RI
+
+rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+                  --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+                  -t SE \
+                  -e results/SE.MATS.JC.txt \
                   --l1 ${sample1} \
                   --l2 ${sample2} \
                   --exon_s 1 \
                   --intron_s 5 \
-                  -o test_coordinate_output
-rmats2sashimiplot --s1 ./testData/S1.R1.test.sam,./testData/S1.R2.test.sam,./testData/S1.R3.test.sam --s2 ./testData/S2.R1.test.sam,./testData/S2.R2.test.sam,./testData/S2.R3.test.sam 
+                  -o sashimi/SE
 
--t SE -e ./testData/MATS_output/test_PC3E_GS689.SE.MATS.events.txt --l1 PC3E --l2 GS689 --exon_s 1 --intron_s 5 -o test_events_output  
+rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+                  --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+                  -t A5SS \
+                  -e results/A5SS.MATS.JC.txt \
+                  --l1 ${sample1} \
+                  --l2 ${sample2} \
+                  --exon_s 1 \
+                  --intron_s 5 \
+                  -o sashimi/A5SS
 
-aws s3 sync ${comparison} s3://panorama-clk-repro/${project}/${comparison}
+rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+                  --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+                  -t A3SS \
+                  -e results/A3SS.MATS.JC.txt \
+                  --l1 ${sample1} \
+                  --l2 ${sample2} \
+                  --exon_s 1 \
+                  --intron_s 5 \
+                  -o sashimi/A3SS
+
+rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+                  --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+                  -t MXE \
+                  -e results/MXE.MATS.JC.txt \
+                  --l1 ${sample1} \
+                  --l2 ${sample2} \
+                  --exon_s 1 \
+                  --intron_s 5 \
+                  -o sashimi/MXE
+
+rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+                  --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+                  -t RI \
+                  -e results/RI.MATS.JC.txt \
+                  --l1 ${sample1} \
+                  --l2 ${sample2} \
+                  --exon_s 1 \
+                  --intron_s 5 \
+                  -o sashimi/RI
+#rmats2sashimiplot --s1 ./testData/S1.R1.test.sam,./testData/S1.R2.test.sam,./testData/S1.R3.test.sam --s2 ./testData/S2.R1.test.sam,./testData/S2.R2.test.sam,./testData/S2.R3.test.sam 
+#-t SE -e ./testData/MATS_output/test_PC3E_GS689.SE.MATS.events.txt --l1 PC3E --l2 GS689 --exon_s 1 --intron_s 5 -o test_events_output  
+
+aws s3 sync sashimi s3://panorama-clk-repro/${project}/${comparison}/sashimi
