@@ -20,7 +20,7 @@ def main(manifest, pair, cur_dir):
             for j in range(0, n_rep):
                 line = in_list.readline()
                 line = line[:line.index('#')] if '#' in line else line
-                in_bam.append(os.path.abspath(line.split()[0]))
+                in_bam.append(os.path.abspath(os.path.join(cur_dir,line.split()[0])))
             in_bam_list += [in_bam]
             in_bam_str += ','.join(in_bam) if in_bam_str == '' else ':' + ','.join(in_bam)
     print(','.join(in_bam_list[int(pair)-1]))
