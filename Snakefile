@@ -163,6 +163,7 @@ rule generate_two_way_manifest:
         metautils.twoSampleComparisonManifest(wildcards.sample1,wildcards.sample2,output.manifest)
 
 
+
 rule run_rmatsiso_from_bam:
     input: bam=RAWDIR+"/{sample}.Aligned{ext}.bam", bai=RAWDIR+"/{sample}.Aligned{ext}.bam.bai"
     output: RAWDIR+"/{sample}.Aligned{ext}.bam.IsoExon", RAWDIR+"/{sample}.Aligned{ext}.bam.IsoMatrix"
@@ -242,7 +243,7 @@ rule run_rmatsturbo_from_manifest:
     input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,include_s3=RAWDIR),
            treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,include_s3=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
-    output: manifest=RAWDIR+"-turbo/{sample1}_vs_{sample2}/done"
+    output: manifest=RAWDIR+"-turbo/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}/done"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
             mb = lambda wildcards: metautils.getECS('foo','mb','IsoModule'),
             gtf = "gencode.v28.annotation.gtf",
@@ -263,18 +264,19 @@ rule run_rmatsturbo_from_manifest:
             """
 
 rule run_rmatssashimi_from_manifest:
-    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample1),include_s3=RAWDIR),
-           treated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample2),include_s3=RAWDIR),
+    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,include_s3=RAWDIR),
+           treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,include_s3=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt",
-    output: manifest=RAWDIR+"-sashimi/{sample1}_vs_{sample2}/done"
+           rmats=RAWDIR+"-turbo/{sample1}_vs_{sample2}/done"
+    output: manifest=RAWDIR+"-turbo/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}/sashimi/done"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
             mb = lambda wildcards: metautils.getECS('foo','mb','IsoModule'),
             gtf = "gencode.v28.annotation.gtf",
             reftx = "GRCh38_star",
-            jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2)
+            jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2+'_sashimi')
     shell: """
             ./batchit submit \
-            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-turbo:latest  \
+            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-sashimi:latest  \
             --role ecsTaskRole  \
             --queue rightnow \
             --jobname {params.jobname} \
