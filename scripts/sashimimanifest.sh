@@ -17,7 +17,7 @@ mkdir GRCh38_star
 aws s3 cp  --quiet s3://panorama-refs/GRCh38_star/${gtf} GRCh38_star/
 
 echo "download rmats results"
-aws s3 sync s3://panorama-clk-repro/${project}/${comparison} results
+aws s3 sync --quiet s3://panorama-clk-repro/${project}/${comparison} results
 echo "aws s3 sync s3://panorama-clk-repro/${project}/${comparison} ."
     # usage: python rmats.py [options] arg1 arg2
 	
@@ -84,57 +84,69 @@ echo "rmats2sashimiplot --b1 <( python2.7 /manifest_to_csl.py manifest.list 1 . 
 #$rmats2sashimiplot --s1 s1_rep1.sam[,s1_rep2.sam]* --s2 s2.rep1.sam[,s2.rep2.sam]* -t eventType -e eventsFile --l1 SampleLabel1 --l2 SampleLabel2 --exon_s exonScale --intron_s intronScale -o outDir
 
 mkdir -p sashimi/SE sashimi/A5SS sashimi/A3SS sashimi/MXE sashimi/RI
+Rscript /filterRmats.R results/SE.MATS.JC.txt
+Rscript /filterRmats.R results/A5SS.MATS.JC.txt
+Rscript /filterRmats.R results/A3SS.MATS.JC.txt
+Rscript /filterRmats.R results/MXE.MATS.JC.txt
+Rscript /filterRmats.R results/RI.MATS.JC.txt
 
-rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+#some of these might fail
+set +e
+
+wc -l results/*filtered.txt || echo "no eligible files"
+echo "" > sashimi/rmats-sashimi.out.txt
+test -f results/SE.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
                   --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
                   -t SE \
-                  -e results/SE.MATS.JC.txt \
+                  -e results/SE.MATS.JC.filtered.txt \
                   --l1 ${sample1} \
                   --l2 ${sample2} \
                   --exon_s 1 \
                   --intron_s 5 \
-                  -o sashimi/SE
+                  -o sashimi/SE >> sashimi/rmats-sashimi.out.txt 2>&1
 
-rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+test -f results/A5SS.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
                   --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
                   -t A5SS \
-                  -e results/A5SS.MATS.JC.txt \
+                  -e results/A5SS.MATS.JC.filtered.txt \
                   --l1 ${sample1} \
                   --l2 ${sample2} \
                   --exon_s 1 \
                   --intron_s 5 \
-                  -o sashimi/A5SS
+                  -o sashimi/A5SS > sashimi/rmats-sashimi.out.txt 2>&1
 
-rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+test -f results/A3SS.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
                   --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
                   -t A3SS \
-                  -e results/A3SS.MATS.JC.txt \
+                  -e results/A3SS.MATS.JC.filtered.txt \
                   --l1 ${sample1} \
                   --l2 ${sample2} \
                   --exon_s 1 \
                   --intron_s 5 \
-                  -o sashimi/A3SS
+                  -o sashimi/A3SS >> sashimi/rmats-sashimi.out.txt 2>&1
 
-rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+test -f results/MXE.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
                   --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
                   -t MXE \
-                  -e results/MXE.MATS.JC.txt \
+                  -e results/MXE.MATS.JC.filtered.txt \
                   --l1 ${sample1} \
                   --l2 ${sample2} \
                   --exon_s 1 \
                   --intron_s 5 \
-                  -o sashimi/MXE
+                  -o sashimi/MXE >> sashimi/rmats-sashimi.out.txt 2>&1
 
-rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+test -f results/RI.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
                   --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
                   -t RI \
-                  -e results/RI.MATS.JC.txt \
+                  -e results/RI.MATS.JC.filtered.txt \
                   --l1 ${sample1} \
                   --l2 ${sample2} \
                   --exon_s 1 \
                   --intron_s 5 \
-                  -o sashimi/RI
+                  -o sashimi/RI >> sashimi/rmats-sashimi.out.txt 2>&1
 #rmats2sashimiplot --s1 ./testData/S1.R1.test.sam,./testData/S1.R2.test.sam,./testData/S1.R3.test.sam --s2 ./testData/S2.R1.test.sam,./testData/S2.R2.test.sam,./testData/S2.R3.test.sam 
 #-t SE -e ./testData/MATS_output/test_PC3E_GS689.SE.MATS.events.txt --l1 PC3E --l2 GS689 --exon_s 1 --intron_s 5 -o test_events_output  
 
-aws s3 sync sashimi s3://panorama-clk-repro/${project}/${comparison}/sashimi
+echo "syncing sashimi output..."
+
+aws s3 sync --quiet sashimi s3://panorama-clk-repro/${destination}/${comparison}/

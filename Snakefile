@@ -263,12 +263,16 @@ rule run_rmatsturbo_from_manifest:
             touch {output}
             """
 
+rule all_sashimi:
+    input: expand(RAWDIR+"-sashimi/{sample1}_vs_{sample2}/done",sample1="untreated",sample2=['0.05','0.1','0.5','1.0','treated'])
+
+#snakemake --force --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster runners/slurm_scheduler.py --cluster-status runners/eric_status.py  -j 50 --cluster-config runners/slurm_cluster_spec.yaml panorama-clk-repro/SRP091981-sashimi/untreated_vs_treated/done panorama-clk-repro/SRP091981-sashimi/untreated_vs_0.1/done  panorama-clk-repro/SRP091981-sashimi/untreated_vs_0.5/done panorama-clk-repro/SRP091981-sashimi/untreated_vs_1.0/done 
 rule run_rmatssashimi_from_manifest:
     input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,include_s3=RAWDIR),
            treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,include_s3=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt",
            rmats=RAWDIR+"-turbo/{sample1}_vs_{sample2}/done"
-    output: manifest=RAWDIR+"-turbo/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}/sashimi/done"
+    output: manifest=RAWDIR+"-sashimi/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}/done"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
             mb = lambda wildcards: metautils.getECS('foo','mb','IsoModule'),
             gtf = "gencode.v28.annotation.gtf",
@@ -282,7 +286,7 @@ rule run_rmatssashimi_from_manifest:
             --jobname {params.jobname} \
             --cpus 16 \
             --mem {params.mb} \
-            --envvars "untreated={input.untreated}" "treated={input.treated}" "manifest={input.manifest}" "comparison={wildcards.sample1}_vs_{wildcards.sample2}" "sample1={wildcards.sample1}" "sample2={wildcards.sample2}" "project=SRP091981-turbo" "bytes={params.bytes}" "reftx={params.reftx}" "gtf={params.gtf}" \
+            --envvars "untreated={input.untreated}" "treated={input.treated}" "manifest={input.manifest}" "comparison={wildcards.sample1}_vs_{wildcards.sample2}" "sample1={wildcards.sample1}" "sample2={wildcards.sample2}" "project=SRP091981-turbo" "destination=SRP091981-sashimi" "bytes={params.bytes}" "reftx={params.reftx}" "gtf={params.gtf}" \
             --ebs /mnt/my-ebs:500:st1:ext4 \
             scripts/sashimimanifest.sh
             touch {output}
