@@ -5,9 +5,6 @@ import yaml
 import boto3
 import re
 
-
-#snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 20 --cluster-config slurm_cluster_spec.yaml onemini
-
 configfile: "config.yaml"
 
 PROJECT_BUCKET = 'panorama-clk-repro'
@@ -103,20 +100,11 @@ rule star_align:
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','STAR'),
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','STAR')
     shell: """
-            ./batchit submit \
-            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/star:latest  \
-            --role ecsTaskRole  \
-            --queue when_you_get_to_it \
-            --jobname star_{wildcards.sample} \
-            --cpus 16 \
-            --mem {params.mb} \
-            --envvars "sample={wildcards.sample}" "project=SRP091981" "bytes={params.bytes}" \
-            --ebs /mnt/my-ebs:500:st1:ext4 \
-            scripts/star.sh
-            touch {output}
+            export sample="{wildcards.sample}"
+            export project="SRP091981""
+            export bytes="{params.bytes}"
+            sh scripts/star.sh
             """
-#> {wildcards.sample}.runid 2>&1 
-
 
 # minimap mapping for long reads
 rule minimap_map:
@@ -135,27 +123,10 @@ rule minimap_map:
         mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','minimap')
     shell:
         """
-        ./batchit submit \
-        --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/minimap2:latest  \
-        --role ecsTaskRole  \
-        --queue when_you_get_to_it \
-        --jobname minimap_{wildcards.sample} \
-        --cpus 16 \
-        --mem {params.mb} \
-        --envvars "sample={wildcards.sample}" "project=SRP091981" \
-        --ebs /mnt/my-ebs:500:st1:ext4 \
-        scripts/minimap.sh
-        touch {output}
+        export sample="{wildcards.sample}""
+        export project="SRP091981"
+        sh scripts/minimap.sh
         """
-
-
-
-#snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  \
-#panorama-clk-repro/SRP091981/untreated_vs_0.05.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_0.1.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_0.5.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_1.0.manifest.txt
-#panorama-clk-repro/SRP091981/untreated_vs_5.0.manifest.txt
-#panorama-clk-repro/SRP091981/untreated184_vs_0.5-184.manifest.txt
-#panorama-clk-repro/SRP091981/untreated184_vs_1.0-184.manifest.txt
-#panorama-clk-repro/SRP091981/untreated184_vs_5.0-184.manifest.txt
 
 rule generate_two_way_manifest:
     output: manifest=RAWDIR+"/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}.manifest.txt"
@@ -171,50 +142,12 @@ rule run_rmatsiso_from_bam:
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','IsoModule'),
             gtf = "level_1_protein_coding_genes.gtf"
     shell: """
-            ./batchit submit \
-            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-iso:latest  \
-            --role ecsTaskRole  \
-            --queue when_you_get_to_it \
-            --jobname isomodule_{wildcards.sample} \
-            --cpus 16 \
-            --mem {params.mb} \
-            --envvars "sample={wildcards.sample}.Aligned{wildcards.ext}" "project=SRP091981" "bytes={params.bytes}" "gtf={params.gtf}" \
-            --ebs /mnt/my-ebs:500:st1:ext4 \
-            scripts/isomodule.sh
-            touch {output}
+            export sample="{wildcards.sample}.Aligned{wildcards.ext}"
+            export project="SRP091981"
+            export bytes="{params.bytes}"
+            export gtf="{params.gtf}"
+            sh scripts/isomodule.sh
             """
-
-# myoutput/
-# myoutput/ISO_plot
-# myoutput/ISO_module
-# myoutput/ISO_module/PC3E-1.sorted.bam.IsoExon
-# myoutput/ISO_module/GS689-3.sorted.bam.IsoMatrix
-# myoutput/ISO_module/PC3E-2.sorted.bam.IsoMatrix
-# myoutput/ISO_module/GS689-2.sorted.bam.IsoMatrix
-# myoutput/ISO_module/PC3E-3.sorted.bam.IsoMatrix
-# myoutput/ISO_module/GS689-1.sorted.bam.IsoMatrix
-# myoutput/ISO_module/PC3E-1.sorted.bam.IsoMatrix
-# myoutput/ISO_classify
-# myoutput/ISO_classify/ISO_module_coor.txt
-# myoutput/ISO_classify/ISO_module_gene.txt
-# myoutput/ISO_classify/ISO_module_type_summary.txt
-# myoutput/ISO_classify/ISO_module_type.txt
-# myoutput/EM_out
-# myoutput/EM_out/EM.out
-#untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", sampleids=metautils.getRunsFromSampleName(lambda wildcards:metautils.getfulldosagename(wildcards.sample1)), ext=['bam','bam.bai']),
-#treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", sampleids=metautils.getRunsFromSampleName(lambda wildcards:metautils.getfulldosagename(wildcards.sample2)), ext=['bam','bam.bai']),
-
-#snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 50 --cluster-config slurm_cluster_spec.yaml \
-#panorama-clk-repro/SRP091981/untreated_vs_0.1/done \
-#panorama-clk-repro/SRP091981/untreated_vs_0.05/done \
-#panorama-clk-repro/SRP091981/untreated_vs_1.0/done \
-#panorama-clk-repro/SRP091981/untreated_vs_0.5/done \
-#panorama-clk-repro/SRP091981/untreated_vs_5.0/done \
-#panorama-clk-repro/SRP091981/untreated184_vs_0.5-184/done \
-#panorama-clk-repro/SRP091981/untreated184_vs_1.0-184/done \
-#panorama-clk-repro/SRP091981/untreated184_vs_5.0-184/done
-
-#snakemake --force --dag --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 50 --cluster-config slurm_cluster_spec.yaml  panorama-clk-repro/SRP091981/untreated_vs_0.5/done | dot -Tpdf > dag.pdf       
 
 rule run_rmatsiso_from_manifest:
     input: untreated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample1),include_s3=RAWDIR),
@@ -226,17 +159,14 @@ rule run_rmatsiso_from_manifest:
             gtf = "gencode.v28.annotation.gtf",
             jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2)
     shell: """
-            ./batchit submit \
-            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-source:latest  \
-            --role ecsTaskRole  \
-            --queue when_you_get_to_it \
-            --jobname {params.jobname} \
-            --cpus 16 \
-            --mem {params.mb} \
-            --envvars "untreated={input.untreated}" "treated={input.treated}" "manifest={input.manifest}" "comparison={wildcards.sample1}_vs_{wildcards.sample2}" "project=SRP091981" "bytes={params.bytes}" "gtf={params.gtf}" \
-            --ebs /mnt/my-ebs:500:st1:ext4 \
-            scripts/isomanifest.sh
-            touch {output}
+            export untreated="{input.untreated}"
+            export treated="{input.treated}"
+            export manifest="{input.manifest}"
+            export comparison="{wildcards.sample1}_vs_{wildcards.sample2}"
+            export project="SRP091981"
+            export bytes="{params.bytes}"
+            export gtf="{params.gtf}" 
+            sh scripts/isomanifest.sh
             """
 
 rule run_rmatsturbo_from_manifest:
@@ -250,17 +180,16 @@ rule run_rmatsturbo_from_manifest:
             reftx = "GRCh38_star",
             jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2)
     shell: """
-            ./batchit submit \
-            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-turbo:latest  \
-            --role ecsTaskRole  \
-            --queue rightnow \
-            --jobname {params.jobname} \
-            --cpus 16 \
-            --mem {params.mb} \
-            --envvars "untreated={input.untreated}" "treated={input.treated}" "manifest={input.manifest}" "comparison={wildcards.sample1}_vs_{wildcards.sample2}" "project=SRP091981-turbo" "bytes={params.bytes}" "reftx={params.reftx}" "gtf={params.gtf}" \
-            --ebs /mnt/my-ebs:500:st1:ext4 \
-            scripts/turbomanifest.sh
-            touch {output}
+            export untreated="{input.untreated}"
+            export treated="{input.treated}"
+            export manifest="{input.manifest}"
+            export comparison="{wildcards.sample1}_vs_{wildcards.sample2}"
+            export project="SRP091981-turbo"
+            export bytes="{params.bytes}"
+            export gtf="{params.gtf}" 
+            export reftx="{params.reftx}"
+            export gtf="{params.gtf}"
+            sh scripts/turbomanifest.sh
             """
 
 rule all_sashimi:
@@ -279,17 +208,20 @@ rule run_rmatssashimi_from_manifest:
             reftx = "GRCh38_star",
             jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2+'_sashimi')
     shell: """
-            ./batchit submit \
-            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-sashimi:latest  \
-            --role ecsTaskRole  \
-            --queue rightnow \
-            --jobname {params.jobname} \
-            --cpus 16 \
-            --mem {params.mb} \
-            --envvars "untreated={input.untreated}" "treated={input.treated}" "manifest={input.manifest}" "comparison={wildcards.sample1}_vs_{wildcards.sample2}" "sample1={wildcards.sample1}" "sample2={wildcards.sample2}" "project=SRP091981-turbo" "destination=SRP091981-sashimi" "bytes={params.bytes}" "reftx={params.reftx}" "gtf={params.gtf}" \
-            --ebs /mnt/my-ebs:500:st1:ext4 \
+            export untreated="{input.untreated}"
+            export treated="{input.treated}"
+            export manifest="{input.manifest}"
+            export comparison="{wildcards.sample1}_vs_{wildcards.sample2}"
+            export project="SRP091981-turbo"
+            export bytes="{params.bytes}"
+            export gtf="{params.gtf}" 
+            export reftx="{params.reftx}"
+            export gtf="{params.gtf}"
+            export sample1="{wildcards.sample1}"
+            export sample2="{wildcards.sample2}"
+            export project="SRP091981-turbo"
+            export destination="SRP091981-sashimi"
             scripts/sashimimanifest.sh
-            touch {output}
             """
 
 rule bamindex:
@@ -298,17 +230,10 @@ rule bamindex:
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','samtoolsindex'),
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','samtoolsindex')
     shell: """
-            ./batchit submit \
-            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/samtools:latest  \
-            --role ecsTaskRole  \
-            --queue when_you_get_to_it \
-            --jobname samtoolsindex_{wildcards.sample} \
-            --cpus 1 \
-            --mem {params.mb} \
-            --envvars "sample={wildcards.sample}" "project=SRP091981" "bytes={params.bytes}" \
-            --ebs /mnt/my-ebs:500:st1:ext4 \
-            scripts/samtoolsindex.sh
-            touch {output}
+            export sample="{wildcards.sample}"
+            export project="SRP091981"
+            export bytes="{params.bytes}"
+            sh scripts/samtoolsindex.sh
             """
 
 rule subsample:
@@ -318,17 +243,11 @@ rule subsample:
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','samtoolssubsample'),
             subfraction = 0.001
     shell: """
-            ./batchit submit \
-            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/samtools:latest  \
-            --role ecsTaskRole  \
-            --queue when_you_get_to_it \
-            --jobname samtoolssubsample_{wildcards.sample} \
-            --cpus 1 \
-            --mem {params.mb} \
-            --envvars "sample={wildcards.sample}" "project=SRP091981" "bytes={params.bytes}" "subfraction={params.subfraction}" \
-            --ebs /mnt/my-ebs:500:st1:ext4 \
-            scripts/subsample.sh
-            touch {output}
+            export sample="{wildcards.sample}"
+            export project="SRP091981"
+            export bytes="{params.bytes}"
+            export subfraction="{params.subfraction}"
+            sh scripts/subsample.sh
             """
 
 rule rmatsiso:
@@ -434,14 +353,8 @@ rule sam_novel_gtf:
         mb = 10000
     shell:
         """
-            ./batchit submit \
-            --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/rmats-iso:latest  \
-            --role ecsTaskRole  \
-            --queue when_you_get_to_it \
-            --jobname lr2rmats_{wildcards.sample} \
-            --cpus 4 \
-            --mem {params.mb} \
-            --envvars "sample={wildcards.sample}" "project=SRP091981" "aln_cov={params.aln_cov}" "iden_frac={params.iden_frac}" "sec_rat={params.sec_rat}" \
+            export sample="{wildcards.sample}"
+            export project=SRP091981" "aln_cov={params.aln_cov}" "iden_frac={params.iden_frac}" "sec_rat={params.sec_rat}" \
             --ebs /mnt/my-ebs:500:st1:ext4 \
             scripts/lr2rmats.sh && touch {output}
         """
