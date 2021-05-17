@@ -1,11 +1,7 @@
 set -euo pipefail
-cd $TMPDIR
-
-aws s3 cp s3://panorama-clk-repro/${project}/${sample}_1.fastq.gz .
-aws s3 cp s3://panorama-clk-repro/${project}/${sample}_2.fastq.gz .
 
 #https://github.com/ewels/AWS-iGenomes
-aws s3 sync s3://panorama-refs/GRCh38_star/ GRCh38_star/
+#aws s3 sync s3://ngi-igenomes/igenomes/Homo_sapiens/NCBI/GRCh38/ s3://clk-splicing/refs/GRCh38/
 
 
 STAR --runMode alignReads \
@@ -19,16 +15,12 @@ STAR --runMode alignReads \
      --sjdbGTFfile GRCh38_star/genes.gtf \
      --genomeDir GRCh38_star \
      --runThreadN ${cpus} \
-     --outFileNamePrefix ${sample}.  \
-     --readFilesIn  ${sample}_1.fastq.gz ${sample}_2.fastq.gz
+     --outFileNamePrefix ${project}/${sample}.  \
+     --readFilesIn  ${project}/${sample}_1.fastq.gz ${project}/${sample}_2.fastq.gz
 
-/code/samtools-1.9/samtools index ${sample}.Aligned.sortedByCoord.out.bam
+samtools index ${project}/${sample}.Aligned.sortedByCoord.out.bam
 
-aws s3 cp ${sample}.Aligned.sortedByCoord.out.bam s3://panorama-clk-repro/${project}/
-aws s3 cp ${sample}.Aligned.sortedByCoord.out.bam.bai s3://panorama-clk-repro/${project}/
-aws s3 cp ${sample}.Log.final.out s3://panorama-clk-repro/${project}/
-aws s3 cp ${sample}.Log.progress.out s3://panorama-clk-repro/${project}/
-aws s3 cp ${sample}.SJ.out.tab s3://panorama-clk-repro/${project}/
+
 
 #STAR defaults
 #alignSJDBoverhangMin        3

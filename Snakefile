@@ -7,16 +7,8 @@ import re
 
 configfile: "config.yaml"
 
-PROJECT_BUCKET = 'panorama-clk-repro'
+PROJECT_BUCKET = 'clk-splicing/SRP091981'
 
-def s3client():
-    return boto3.client('s3',
-        aws_access_key_id = os.environ['AWS_ACCESS_KEY_ID'],
-        aws_secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
-    )
-s3_boto2 = S3RemoteProvider()
-s3_boto2.keep_local=True #Keep local copies of remote input files
-#s3_boto2.stay_on_remote=True #don't download the file at all
 
 LOCAL_SCRATCH = "/scratch"
 RAWDIR="SRP091981"
@@ -24,6 +16,7 @@ PROCESSDIR="process"
 SRAFILES = [line.rstrip() for line in open("metadata/SraAccList.txt")]
 ILLUMINA_SRA = metautils.illuminaRuns()
 PACBIO_SRA = metautils.pacbioRuns()
+TMPDIR = os.getcwd()
 
 rule onemini:
     input: RAWDIR+"/SRR5009429_sam_novel.gtf", RAWDIR+"/SRR5009429.lr2rmats.log", RAWDIR+"/SRR5009429.filtered.bam"
@@ -57,13 +50,31 @@ rule pacbio_lr2rmats:
 rule allfiles:
     input: expand(RAWDIR+"/{sampleids}_{pair}.fastq.gz", sampleids=ILLUMINA_SRA, pair=[1,2]), expand(RAWDIR+"/{sampleids}.fastq.gz", sampleids=PACBIO_SRA)
 
-rule fetchpair_from_sra:
-    output: RAWDIR+"/{accession}_1.fastq.gz", RAWDIR+"/{accession}_2.fastq.gz"
+rule fetchpair_from_aws:
+    output: pair1 = RAWDIR+"/{accession}_1.fastq.gz",
+            pair2 = RAWDIR+"/{accession}_2.fastq.gz"
     run:
-        print("fastq-dump --split-3 --gzip {0} -O {1}".format(wildcards.accession,RAWDIR))
-        shell("fastq-dump --split-3 --gzip {0} -O {1}".format(wildcards.accession,RAWDIR))
-        #shell("fasterq-dump --split-3 {0} -O {1}".format(wildcards.accession,RAWDIR))
-        #shell("gzip -1 {0}/{1}_1.fastq {0}/{1}_2.fastq".format(RAWDIR,wildcards.accession))
+        s3pair1 = metautils.st.loc[metautils.st['Run'] == wildcards.accession]['Pair1Filename'].to_string(index=False).replace(' ','')
+        s3pair2 = metautils.st.loc[metautils.st['Run'] == wildcards.accession]['Pair2Filename'].to_string(index=False).replace(' ','')
+        print(s3pair1)
+        if wildcards.accession in metautils.pacbioRuns():
+            #pair1 correspond to the bas.h5
+            shell("wget https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair1))
+            shell("bash5tools.py {0} --outFilePrefix {1}".format(s3pair1,wildcards.accession))
+        	#shell("bedtools bamtofastq -i {0} -fq {1} -fq2 {2}".format(output.pair1,output.pair2))
+        else:
+            shell("wget -O {2} https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair1,output.pair1))
+            shell("wget -O {2} https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair2,output.pair2))
+       
+
+# Let's not do this - I just did a bulk transfer of SRP091981
+# rule fetchpair_from_sra:
+#     output: RAWDIR+"/{accession}_1.fastq.gz", RAWDIR+"/{accession}_2.fastq.gz"
+#     run:
+#         print("fastq-dump --split-3 --gzip {0} -O {1}".format(wildcards.accession,RAWDIR))
+#         shell("fastq-dump --split-3 --gzip {0} -O {1}".format(wildcards.accession,RAWDIR))
+#         #shell("fasterq-dump --split-3 {0} -O {1}".format(wildcards.accession,RAWDIR))
+#         #shell("gzip -1 {0}/{1}_1.fastq {0}/{1}_2.fastq".format(RAWDIR,wildcards.accession))
 
 rule getasingleton:
     output: RAWDIR+"/{accessiondf -h }.fastq.gz"
@@ -71,6 +82,7 @@ rule getasingleton:
         print("fastq-dump --split-3 --gzip {0} -O {1}".format(wildcards.accession,RAWDIR))
         shell("fastq-dump --split-3 --gzip {0} -O {1}".format(wildcards.accession,RAWDIR))
 
+#this is a more casual metadata file than SRA provides through pysradb
 rule metadata:
     output: "metadata.csv"
     shell:
@@ -90,6 +102,15 @@ rule upload:
     run:
           shell("mv {input} {output} && rm -f {input}")
 
+rule getStarRefs:
+    output:
+        "GRCh38_star/Genome",
+        "GRCh38_star/genomeParameters"
+    shell:
+        """
+        aws s3 sync s3://clk-splicing/refs/GRCh38/Sequence/STARIndex/ GRCh38_star/
+        """
+
 rule star_align:
     input: RAWDIR+"/{sample}_1.fastq.gz", RAWDIR+"/{sample}_2.fastq.gz"
     output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",
@@ -97,19 +118,31 @@ rule star_align:
             RAWDIR+"/{sample}.Log.out",
             RAWDIR+"/{sample}.Log.progress.out",
             RAWDIR+"/{sample}.SJ.out.tab"
+    threads: 8
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','STAR'),
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','STAR')
     shell: """
-            export sample="{wildcards.sample}"
-            export project="SRP091981""
-            export bytes="{params.bytes}"
-            sh scripts/star.sh
+            STAR --runMode alignReads \
+                 --outSAMtype BAM SortedByCoordinate \
+                 --limitBAMsortRAM {params.bytes} \
+                 --readFilesCommand zcat \
+                 --outFilterType BySJout   --outFilterMultimapNmax 20 \
+                 --outFilterMismatchNmax 999   --alignIntronMin 25  \
+                 --alignIntronMax 1000000   --alignMatesGapMax 1000000 \
+                 --alignSJoverhangMin 8   --alignSJDBoverhangMin 5 \
+                 --sjdbGTFfile GRCh38_star/genes.gtf \
+                 --genomeDir GRCh38_star \
+                 --runThreadN {threads} \
+                 --outFileNamePrefix SRP091981/{wildcards.sample}.  \
+                 --readFilesIn  SRP091981/{wildcards.sample}_1.fastq.gz SRP091981/{wildcards.sample}_2.fastq.gz
+            
+            samtools index SRP091981/{wildcards.sample}.Aligned.sortedByCoord.out.bam
             """
 
 # minimap mapping for long reads
 rule minimap_map:
     input:
-        "SRP091981/{sample}.fastq.gz"
+        "SRP091981/{sample}.fasta"
     output:
         "SRP091981/{sample}.sam"
     threads:

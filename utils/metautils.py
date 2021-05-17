@@ -1,5 +1,5 @@
 import pandas
-
+pandas.set_option('display.max_colwidth',1000)
 st = pandas.read_csv("metadata/metadata.csv",
                      dtype={'Run,': object,
                             'ReleaseDate,': object, 'LoadDate,': object, 'spots,': object, 'bases,': object,
@@ -14,6 +14,8 @@ st = pandas.read_csv("metadata/metadata.csv",
                             'Histological_Type,': object, 'Body_Site,': object, 'CenterName,': object, 'Submission,': object,
                             'dbgap_study_accession,': object, 'Consent,': object, 'RunHash,': object, 'ReadHash': object})
 
+fl = pandas.read_csv("metadata/filenames.txt",sep="\t")
+st = st.merge(fl, how='inner', on="Run")
 
 def illuminaRuns():
     return(st.loc[st['Platform'] == 'ILLUMINA']['Run'].tolist())
