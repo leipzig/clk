@@ -6,11 +6,11 @@ import boto3
 import re
 
 
-#snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 20 --cluster-config slurm_cluster_spec.yaml onemini
+#snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix clk-splicing  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 20 --cluster-config slurm_cluster_spec.yaml onemini
 
 configfile: "config.yaml"
 
-PROJECT_BUCKET = 'panorama-clk-repro'
+PROJECT_BUCKET = 'clk-splicing'
 
 def s3client():
     return boto3.client('s3',
@@ -150,12 +150,12 @@ rule minimap_map:
 
 
 
-#snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  \
-#panorama-clk-repro/SRP091981/untreated_vs_0.05.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_0.1.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_0.5.manifest.txt panorama-clk-repro/SRP091981/untreated_vs_1.0.manifest.txt
-#panorama-clk-repro/SRP091981/untreated_vs_5.0.manifest.txt
-#panorama-clk-repro/SRP091981/untreated184_vs_0.5-184.manifest.txt
-#panorama-clk-repro/SRP091981/untreated184_vs_1.0-184.manifest.txt
-#panorama-clk-repro/SRP091981/untreated184_vs_5.0-184.manifest.txt
+#snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix clk-splicing  \
+#clk-splicing/SRP091981/untreated_vs_0.05.manifest.txt clk-splicing/SRP091981/untreated_vs_0.1.manifest.txt clk-splicing/SRP091981/untreated_vs_0.5.manifest.txt clk-splicing/SRP091981/untreated_vs_1.0.manifest.txt
+#clk-splicing/SRP091981/untreated_vs_5.0.manifest.txt
+#clk-splicing/SRP091981/untreated184_vs_0.5-184.manifest.txt
+#clk-splicing/SRP091981/untreated184_vs_1.0-184.manifest.txt
+#clk-splicing/SRP091981/untreated184_vs_5.0-184.manifest.txt
 
 rule generate_two_way_manifest:
     output: manifest=RAWDIR+"/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}.manifest.txt"
@@ -204,17 +204,17 @@ rule run_rmatsiso_from_bam:
 #untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", sampleids=metautils.getRunsFromSampleName(lambda wildcards:metautils.getfulldosagename(wildcards.sample1)), ext=['bam','bam.bai']),
 #treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", sampleids=metautils.getRunsFromSampleName(lambda wildcards:metautils.getfulldosagename(wildcards.sample2)), ext=['bam','bam.bai']),
 
-#snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 50 --cluster-config slurm_cluster_spec.yaml \
-#panorama-clk-repro/SRP091981/untreated_vs_0.1/done \
-#panorama-clk-repro/SRP091981/untreated_vs_0.05/done \
-#panorama-clk-repro/SRP091981/untreated_vs_1.0/done \
-#panorama-clk-repro/SRP091981/untreated_vs_0.5/done \
-#panorama-clk-repro/SRP091981/untreated_vs_5.0/done \
-#panorama-clk-repro/SRP091981/untreated184_vs_0.5-184/done \
-#panorama-clk-repro/SRP091981/untreated184_vs_1.0-184/done \
-#panorama-clk-repro/SRP091981/untreated184_vs_5.0-184/done
+#snakemake --no-shared-fs --default-remote-provider S3 --default-remote-prefix clk-splicing  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 50 --cluster-config slurm_cluster_spec.yaml \
+#clk-splicing/SRP091981/untreated_vs_0.1/done \
+#clk-splicing/SRP091981/untreated_vs_0.05/done \
+#clk-splicing/SRP091981/untreated_vs_1.0/done \
+#clk-splicing/SRP091981/untreated_vs_0.5/done \
+#clk-splicing/SRP091981/untreated_vs_5.0/done \
+#clk-splicing/SRP091981/untreated184_vs_0.5-184/done \
+#clk-splicing/SRP091981/untreated184_vs_1.0-184/done \
+#clk-splicing/SRP091981/untreated184_vs_5.0-184/done
 
-#snakemake --force --dag --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 50 --cluster-config slurm_cluster_spec.yaml  panorama-clk-repro/SRP091981/untreated_vs_0.5/done | dot -Tpdf > dag.pdf       
+#snakemake --force --dag --no-shared-fs --default-remote-provider S3 --default-remote-prefix clk-splicing  --cluster ./slurm_scheduler.py --cluster-status ./eric_status.py  -j 50 --cluster-config slurm_cluster_spec.yaml  clk-splicing/SRP091981/untreated_vs_0.5/done | dot -Tpdf > dag.pdf       
 
 rule run_rmatsiso_from_manifest:
     input: untreated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample1),include_s3=RAWDIR),
@@ -266,7 +266,7 @@ rule run_rmatsturbo_from_manifest:
 rule all_sashimi:
     input: expand(RAWDIR+"-sashimi/{sample1}_vs_{sample2}/done",sample1="untreated",sample2=['0.05','0.1','0.5','1.0','treated'])
 
-#snakemake --force --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster runners/slurm_scheduler.py --cluster-status runners/eric_status.py  -j 50 --cluster-config runners/slurm_cluster_spec.yaml panorama-clk-repro/SRP091981-sashimi/untreated_vs_treated/done panorama-clk-repro/SRP091981-sashimi/untreated_vs_0.1/done  panorama-clk-repro/SRP091981-sashimi/untreated_vs_0.5/done panorama-clk-repro/SRP091981-sashimi/untreated_vs_1.0/done 
+#snakemake --force --no-shared-fs --default-remote-provider S3 --default-remote-prefix clk-splicing  --cluster runners/slurm_scheduler.py --cluster-status runners/eric_status.py  -j 50 --cluster-config runners/slurm_cluster_spec.yaml clk-splicing/SRP091981-sashimi/untreated_vs_treated/done clk-splicing/SRP091981-sashimi/untreated_vs_0.1/done  clk-splicing/SRP091981-sashimi/untreated_vs_0.5/done clk-splicing/SRP091981-sashimi/untreated_vs_1.0/done 
 rule run_rmatssashimi_from_manifest:
     input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,include_s3=RAWDIR),
            treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,include_s3=RAWDIR),

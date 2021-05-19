@@ -214,7 +214,7 @@ dose="0.5"
 metadata %>% filter(str_detect(SampleName,dose)) %>% filter(str_detect(SampleName,'T3')) %>% filter(Platform=='ILLUMINA') %>% filter(str_detect(SampleName,'HCT116'))  %>% dplyr::pull(Run) -> treated
 metadata %>% filter(str_detect(SampleName,'Untreated')) %>% filter(Platform=='ILLUMINA') %>% filter(str_detect(SampleName,'HCT116')) %>% dplyr::pull(Run) -> untreated
 
-#aws s3 cp s3://panorama-clk-repro/SRP091981/SRR5009487.Aligned.sortedByCoord.out.bam SRP091981/
+#aws s3 cp s3://clk-splicing/SRP091981/SRR5009487.Aligned.sortedByCoord.out.bam SRP091981/
 atreated<-"SRR5009487"
 auntreated<-"SRR5009474"
 

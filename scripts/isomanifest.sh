@@ -13,9 +13,9 @@ ls -alt .
 
 echo "downloading gtf.."
 mkdir GRCh38_star
-aws s3 cp s3://panorama-refs/GRCh38_star/${gtf} GRCh38_star/
+aws s3 cp s3://clk-splicing/refs/GRCh38_star/${gtf} GRCh38_star/
 
 python3 /rMATS-ISO-master/rMATS-ISO.py  --in-gtf GRCh38_star/${gtf} --in-bam manifest.list -o ${comparison}
 
-aws s3 sync ${comparison} s3://panorama-clk-repro/${project}/${comparison}
+aws s3 sync ${comparison} s3://clk-splicing/${project}/${comparison}
 

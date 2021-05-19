@@ -13,7 +13,7 @@ ls -alt .
 
 echo "downloading gtf.."
 #mkdir GRCh38_star
-aws s3 cp s3://panorama-refs/GRCh38_star/${gtf} .
+aws s3 cp s3://clk-splicing/refs/GRCh38_star/${gtf} .
 
     # usage: python rmats.py [options] arg1 arg2
 	
@@ -57,4 +57,4 @@ echo "running rmats.."
 mkdir -p ${comparison}
 python2.7 /rMATS.4.0.2/rMATS-turbo-Linux-UCS4/rmats.py --nthread ${cpus} -t paired --gtf ${gtf} --b1 <( python2.7 /rMATS.4.0.2/rMATS-turbo-Linux-UCS4/manifest_to_csl.py manifest.list 1 . ) --b2 <( python2.7 /rMATS.4.0.2/rMATS-turbo-Linux-UCS4/manifest_to_csl.py manifest.list 2 . ) --od ${comparison} >${comparison}/rmats.out.txt 2>&1
 
-aws s3 sync ${comparison} s3://panorama-clk-repro/${project}/${comparison}
+aws s3 sync ${comparison} s3://clk-splicing/${project}/${comparison}

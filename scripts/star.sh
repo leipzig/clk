@@ -1,11 +1,11 @@
 set -euo pipefail
 cd $TMPDIR
 
-aws s3 cp s3://panorama-clk-repro/${project}/${sample}_1.fastq.gz .
-aws s3 cp s3://panorama-clk-repro/${project}/${sample}_2.fastq.gz .
+aws s3 cp s3://clk-splicing/${project}/${sample}_1.fastq.gz .
+aws s3 cp s3://clk-splicing/${project}/${sample}_2.fastq.gz .
 
 #https://github.com/ewels/AWS-iGenomes
-aws s3 sync s3://panorama-refs/GRCh38_star/ GRCh38_star/
+aws s3 sync s3://clk-splicing/refs/GRCh38_star/ GRCh38_star/
 
 
 STAR --runMode alignReads \
@@ -24,11 +24,11 @@ STAR --runMode alignReads \
 
 /code/samtools-1.9/samtools index ${sample}.Aligned.sortedByCoord.out.bam
 
-aws s3 cp ${sample}.Aligned.sortedByCoord.out.bam s3://panorama-clk-repro/${project}/
-aws s3 cp ${sample}.Aligned.sortedByCoord.out.bam.bai s3://panorama-clk-repro/${project}/
-aws s3 cp ${sample}.Log.final.out s3://panorama-clk-repro/${project}/
-aws s3 cp ${sample}.Log.progress.out s3://panorama-clk-repro/${project}/
-aws s3 cp ${sample}.SJ.out.tab s3://panorama-clk-repro/${project}/
+aws s3 cp ${sample}.Aligned.sortedByCoord.out.bam s3://clk-splicing/${project}/
+aws s3 cp ${sample}.Aligned.sortedByCoord.out.bam.bai s3://clk-splicing/${project}/
+aws s3 cp ${sample}.Log.final.out s3://clk-splicing/${project}/
+aws s3 cp ${sample}.Log.progress.out s3://clk-splicing/${project}/
+aws s3 cp ${sample}.SJ.out.tab s3://clk-splicing/${project}/
 
 #STAR defaults
 #alignSJDBoverhangMin        3

@@ -1,5 +1,5 @@
 #arn:aws:iam::977618787841:role/service-role/AWSBatchServiceRole
-#  "bucket=panorama-clk-repro" "project=SRP091981" \
+#  "bucket=clk-splicing" "project=SRP091981" \
 ./batchit submit \
             --image 977618787841.dkr.ecr.us-east-1.amazonaws.com/star:latest \
             --role ecsTaskRole \

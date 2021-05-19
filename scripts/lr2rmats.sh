@@ -6,11 +6,11 @@ export PATH=$PATH:/opt/conda/bin
 
 mkdir GRCh38_star
 echo "download genes..."
-aws s3 cp s3://panorama-refs/GRCh38_star/genes.gtf GRCh38_star/genes.gtf
+aws s3 cp s3://clk-splicing/refs/GRCh38_star/genes.gtf GRCh38_star/genes.gtf
 echo "download sam..."
-aws s3 cp s3://panorama-clk-repro/${project}/${sample}.sam .
+aws s3 cp s3://clk-splicing/${project}/${sample}.sam .
 echo "download rRNA gtf"
-aws s3 cp s3://panorama-refs/GRCh38_star/rRNA_tx.gtf GRCh38_star/rRNA_tx.gtf 
+aws s3 cp s3://clk-splicing/refs/GRCh38_star/rRNA_tx.gtf GRCh38_star/rRNA_tx.gtf 
 
 # "{params.lr2rmats} filter {input.sam} {params.rm_gtf} -v {params.aln_cov} -q {params.iden_frac} -s {params.sec_rat} 2> {log} | {params.samtools} sort -@ {threads} > {output.filtered_bam} 2>> {log}; "
 # "{params.lr2rmats} update-gtf {output.filtered_bam} {input.gtf} 2>> {log} > {output.sam_gtf}"
@@ -29,6 +29,6 @@ echo "yo" > ${sample}.lr2rmats.log
 echo "lr2rmats update-gtf..."  
 lr2rmats update-gtf ${sample}.filtered_bam GRCh38_star/genes.gtf > ${sample}_sam_novel.gtf
 #2>> ${sample}.lr2rmats.log
-aws s3 cp ${sample}_sam_novel.gtf s3://panorama-clk-repro/${project}/
-aws s3 cp ${sample}.filtered_bam s3://panorama-clk-repro/${project}/
-aws s3 cp ${sample}.lr2rmats.log s3://panorama-clk-repro/${project}/
+aws s3 cp ${sample}_sam_novel.gtf s3://clk-splicing/${project}/
+aws s3 cp ${sample}.filtered_bam s3://clk-splicing/${project}/
+aws s3 cp ${sample}.lr2rmats.log s3://clk-splicing/${project}/

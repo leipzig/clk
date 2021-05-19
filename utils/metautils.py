@@ -87,7 +87,7 @@ def twoSampleComparisonManifest(samp1, samp2, filename):
         for replicate in run:
             text_file.write("{0}\n".format(replicate))
 
-# "panorama-clk-repro/SRP091981/
+# "clk-splicing/SRP091981/
 
 
 def getBamsFromSampleName(samp, include_s3=None, include_bai=True):

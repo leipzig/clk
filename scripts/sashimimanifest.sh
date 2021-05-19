@@ -14,11 +14,11 @@ ls -alt .
 
 echo "downloading gtf.."
 mkdir GRCh38_star
-aws s3 cp  --quiet s3://panorama-refs/GRCh38_star/${gtf} GRCh38_star/
+aws s3 cp  --quiet s3://clk-splicing/refs/GRCh38_star/${gtf} GRCh38_star/
 
 echo "download rmats results"
-aws s3 sync --quiet s3://panorama-clk-repro/${project}/${comparison} results
-echo "aws s3 sync s3://panorama-clk-repro/${project}/${comparison} ."
+aws s3 sync --quiet s3://clk-splicing/${project}/${comparison} results
+echo "aws s3 sync s3://clk-splicing/${project}/${comparison} ."
     # usage: python rmats.py [options] arg1 arg2
 	
     # optional arguments:
@@ -149,4 +149,4 @@ test -f results/RI.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /ma
 
 echo "syncing sashimi output..."
 
-aws s3 sync --quiet sashimi s3://panorama-clk-repro/${destination}/${comparison}/
+aws s3 sync --quiet sashimi s3://clk-splicing/${destination}/${comparison}/
