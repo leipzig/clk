@@ -1,5 +1,5 @@
 set -euo pipefail
-cd $TMPDIR
+#cd $TMPDIR
 
 export PATH=/opt/conda/bin:$PATH
 echo "downloading s3://panorama-clk-repro/${project}/${sample}.Aligned.sortedByCoord.out.bam"

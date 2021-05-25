@@ -80,11 +80,11 @@ def getECS(runName, units, program):
 # sam2_rep3.bam
 
 
-def twoSampleComparisonManifest(samp1, samp2, filename):
+def twoSampleComparisonManifest(samp1, samp2, filename, path_prefix=None):
     text_file = open(filename, "w")
     text_file.write("2\n")  # two-way comparison
     for runName in [samp1, samp2]:
-        run = getBamsFromSampleName(runName, include_bai=False)
+        run = getBamsFromSampleName(runName, path_prefix, include_bai=False)
         text_file.write("{0}\n".format(len(run)))
         for replicate in run:
             text_file.write("{0}\n".format(replicate))
@@ -92,15 +92,15 @@ def twoSampleComparisonManifest(samp1, samp2, filename):
 # "panorama-clk-repro/SRP091981/
 
 
-def getBamsFromSampleName(samp, include_s3=None, include_bai=True):
+def getBamsFromSampleName(samp, path_prefix=None, include_bai=True):
     if include_bai:
         exts = ['bam', 'bam.bai']
     else:
         exts = ['bam']
     runs = getRunsFromSampleName(samp)
-    if include_s3:
+    if path_prefix:
         bams = ["{0}/{1}.Aligned.sortedByCoord.out.{2}".format(
-            include_s3, replicate, ext) for replicate in runs for ext in exts]
+            path_prefix, replicate, ext) for replicate in runs for ext in exts]
     else:
         bams = ["{0}.Aligned.sortedByCoord.out.{1}".format(
             replicate, ext) for replicate in runs for ext in exts]

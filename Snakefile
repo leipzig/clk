@@ -118,7 +118,7 @@ rule star_align:
             RAWDIR+"/{sample}.Log.out",
             RAWDIR+"/{sample}.Log.progress.out",
             RAWDIR+"/{sample}.SJ.out.tab"
-    threads: 8
+    threads: 16
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','STAR'),
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','STAR')
     shell: """
@@ -156,15 +156,15 @@ rule minimap_map:
         mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','minimap')
     shell:
         """
-        export sample="{wildcards.sample}""
-        export project="SRP091981"
+        sample="{wildcards.sample}""
+        project="SRP091981"
         sh scripts/minimap.sh
         """
 
 rule generate_two_way_manifest:
     output: manifest=RAWDIR+"/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}.manifest.txt"
     run:
-        metautils.twoSampleComparisonManifest(wildcards.sample1,wildcards.sample2,output.manifest)
+        metautils.twoSampleComparisonManifest(wildcards.sample1,wildcards.sample2,output.manifest,path_prefix="SRP091981")
 
 
 
@@ -175,16 +175,16 @@ rule run_rmatsiso_from_bam:
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','IsoModule'),
             gtf = "level_1_protein_coding_genes.gtf"
     shell: """
-            export sample="{wildcards.sample}.Aligned{wildcards.ext}"
-            export project="SRP091981"
-            export bytes="{params.bytes}"
-            export gtf="{params.gtf}"
+            sample="{wildcards.sample}.Aligned{wildcards.ext}"
+            project="SRP091981"
+            bytes="{params.bytes}"
+            gtf="{params.gtf}"
             sh scripts/isomodule.sh
             """
 
 rule run_rmatsiso_from_manifest:
-    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample1),include_s3=RAWDIR),
-           treated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample2),include_s3=RAWDIR),
+    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample1),path_prefix=RAWDIR),
+           treated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample2),path_prefix=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
     output: manifest=RAWDIR+"/{sample1}_vs_{sample2}/done"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
@@ -192,46 +192,46 @@ rule run_rmatsiso_from_manifest:
             gtf = "gencode.v28.annotation.gtf",
             jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2)
     shell: """
-            export untreated="{input.untreated}"
-            export treated="{input.treated}"
-            export manifest="{input.manifest}"
-            export comparison="{wildcards.sample1}_vs_{wildcards.sample2}"
-            export project="SRP091981"
-            export bytes="{params.bytes}"
-            export gtf="{params.gtf}" 
-            sh scripts/isomanifest.sh
+            untreated="{input.untreated}"
+            treated="{input.treated}"
+            manifest="{input.manifest}"
+            comparison="{wildcards.sample1}_vs_{wildcards.sample2}"
+            project="SRP091981"
+            bytes="{params.bytes}"
+            gtf="{params.gtf}" 
+            python3 /rMATS-ISO-master/rMATS-ISO.py  --in-gtf GRCh38_star/${gtf} --in-bam manifest.list -o ${comparison}
             """
 
 rule run_rmatsturbo_from_manifest:
-    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,include_s3=RAWDIR),
-           treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,include_s3=RAWDIR),
+    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,path_prefix=RAWDIR),
+           treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,path_prefix=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
-    output: manifest=RAWDIR+"-turbo/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}/done"
+    output: RAWDIR+"-turbo/{sample1}_vs_{sample2}/rmats.out.txt"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
             mb = lambda wildcards: metautils.getECS('foo','mb','IsoModule'),
-            gtf = "gencode.v28.annotation.gtf",
+            gtf = "refs/GRCh38/Annotation/Genes.gencode/genes.gtf",
             reftx = "GRCh38_star",
-            jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2)
+            jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2),
+            outdir = RAWDIR+"-turbo",
+            tmpdir = "/tmp/{sample1}_vs_{sample2}"
+    threads: 16
     shell: """
-            export untreated="{input.untreated}"
-            export treated="{input.treated}"
-            export manifest="{input.manifest}"
-            export comparison="{wildcards.sample1}_vs_{wildcards.sample2}"
-            export project="SRP091981-turbo"
-            export bytes="{params.bytes}"
-            export gtf="{params.gtf}" 
-            export reftx="{params.reftx}"
-            export gtf="{params.gtf}"
-            sh scripts/turbomanifest.sh
+            rmats.py --readLength 150 --variable-read-length --allow-clipping --novelSS --nthread {threads} -t paired --gtf {params.gtf} --b1 <( python scripts/manifest_to_csl.py {input.manifest} 1 . )  \
+            --b2 <( python scripts/manifest_to_csl.py {input.manifest} 2 . ) \
+            --od {params.outdir}/{wildcards.sample1}_vs_{wildcards.sample2}  \
+            --tmp {params.tmpdir} > {output}
             """
 
+rule all_turbo:
+    input: expand(RAWDIR+"-turbo/{sample1}_vs_{sample2}/rmats.out.txt",sample1="untreated",sample2=['0.05','0.1','0.5','1.0','treated'])
+    
 rule all_sashimi:
     input: expand(RAWDIR+"-sashimi/{sample1}_vs_{sample2}/done",sample1="untreated",sample2=['0.05','0.1','0.5','1.0','treated'])
 
-#snakemake --force --no-shared-fs --default-remote-provider S3 --default-remote-prefix panorama-clk-repro  --cluster runners/slurm_scheduler.py --cluster-status runners/eric_status.py  -j 50 --cluster-config runners/slurm_cluster_spec.yaml panorama-clk-repro/SRP091981-sashimi/untreated_vs_treated/done panorama-clk-repro/SRP091981-sashimi/untreated_vs_0.1/done  panorama-clk-repro/SRP091981-sashimi/untreated_vs_0.5/done panorama-clk-repro/SRP091981-sashimi/untreated_vs_1.0/done 
+#snakemake -j  SRP091981-sashimi/untreated_vs_treated/done panorama-clk-repro/SRP091981-sashimi/untreated_vs_0.1/done  panorama-clk-repro/SRP091981-sashimi/untreated_vs_0.5/done panorama-clk-repro/SRP091981-sashimi/untreated_vs_1.0/done 
 rule run_rmatssashimi_from_manifest:
-    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,include_s3=RAWDIR),
-           treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,include_s3=RAWDIR),
+    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,path_prefix=RAWDIR),
+           treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,path_prefix=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt",
            rmats=RAWDIR+"-turbo/{sample1}_vs_{sample2}/done"
     output: manifest=RAWDIR+"-sashimi/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}/done"
@@ -241,20 +241,82 @@ rule run_rmatssashimi_from_manifest:
             reftx = "GRCh38_star",
             jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2+'_sashimi')
     shell: """
-            export untreated="{input.untreated}"
-            export treated="{input.treated}"
-            export manifest="{input.manifest}"
-            export comparison="{wildcards.sample1}_vs_{wildcards.sample2}"
-            export project="SRP091981-turbo"
-            export bytes="{params.bytes}"
-            export gtf="{params.gtf}" 
-            export reftx="{params.reftx}"
-            export gtf="{params.gtf}"
-            export sample1="{wildcards.sample1}"
-            export sample2="{wildcards.sample2}"
-            export project="SRP091981-turbo"
-            export destination="SRP091981-sashimi"
-            scripts/sashimimanifest.sh
+            untreated="{input.untreated}"
+            treated="{input.treated}"
+            manifest="{input.manifest}"
+            comparison="{wildcards.sample1}_vs_{wildcards.sample2}"
+            project="SRP091981-turbo"
+            bytes="{params.bytes}"
+            gtf="{params.gtf}" 
+            reftx="{params.reftx}"
+            gtf="{params.gtf}"
+            sample1="{wildcards.sample1}"
+            sample2="{wildcards.sample2}"
+            project="SRP091981-turbo"
+            destination="SRP091981-sashimi"
+            mkdir -p SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/SE SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A5SS
+            mkdir -p SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A3SS SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/MXE
+            mkdir -p SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/RI
+            Rscript scripts/filterRmats.R SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/SE.MATS.JC.txt
+            Rscript scripts/filterRmats.R SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A5SS.MATS.JC.txt
+            Rscript scripts/filterRmats.R SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A3SS.MATS.JC.txt
+            Rscript scripts/filterRmats.R SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/MXE.MATS.JC.txt
+            Rscript scripts/filterRmats.R SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/RI.MATS.JC.txt
+            
+            #some of these might fail
+            set +e
+            
+            wc -l SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/*filtered.txt || echo "no eligible files"
+            echo "" > sashimi/rmats-sashimi.out.txt
+            test -f SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/SE.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+                              --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+                              -t SE \
+                              -e results/SE.MATS.JC.filtered.txt \
+                              --l1 ${sample1} \
+                              --l2 ${sample2} \
+                              --exon_s 1 \
+                              --intron_s 5 \
+                              -o sashimi/SE >> sashimi/rmats-sashimi.out.txt 2>&1
+            
+            test -f SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A5SS.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+                              --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+                              -t A5SS \
+                              -e results/A5SS.MATS.JC.filtered.txt \
+                              --l1 ${sample1} \
+                              --l2 ${sample2} \
+                              --exon_s 1 \
+                              --intron_s 5 \
+                              -o sashimi/A5SS > sashimi/rmats-sashimi.out.txt 2>&1
+            
+            test -f results/A3SS.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+                              --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+                              -t A3SS \
+                              -e results/A3SS.MATS.JC.filtered.txt \
+                              --l1 ${sample1} \
+                              --l2 ${sample2} \
+                              --exon_s 1 \
+                              --intron_s 5 \
+                              -o sashimi/A3SS >> sashimi/rmats-sashimi.out.txt 2>&1
+            
+            test -f results/MXE.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+                              --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+                              -t MXE \
+                              -e results/MXE.MATS.JC.filtered.txt \
+                              --l1 ${sample1} \
+                              --l2 ${sample2} \
+                              --exon_s 1 \
+                              --intron_s 5 \
+                              -o sashimi/MXE >> sashimi/rmats-sashimi.out.txt 2>&1
+            
+            test -f results/RI.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
+                              --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+                              -t RI \
+                              -e results/RI.MATS.JC.filtered.txt \
+                              --l1 ${sample1} \
+                              --l2 ${sample2} \
+                              --exon_s 1 \
+                              --intron_s 5 \
+                              -o sashimi/RI >> sashimi/rmats-sashimi.out.txt 2>&1
             """
 
 rule bamindex:
@@ -263,10 +325,7 @@ rule bamindex:
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','samtoolsindex'),
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','samtoolsindex')
     shell: """
-            export sample="{wildcards.sample}"
-            export project="SRP091981"
-            export bytes="{params.bytes}"
-            sh scripts/samtoolsindex.sh
+            samtools index {input}
             """
 
 rule subsample:
@@ -276,10 +335,10 @@ rule subsample:
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','samtoolssubsample'),
             subfraction = 0.001
     shell: """
-            export sample="{wildcards.sample}"
-            export project="SRP091981"
-            export bytes="{params.bytes}"
-            export subfraction="{params.subfraction}"
+            sample="{wildcards.sample}"
+            project="SRP091981"
+            bytes="{params.bytes}"
+            subfraction="{params.subfraction}"
             sh scripts/subsample.sh
             """
 
@@ -386,8 +445,8 @@ rule sam_novel_gtf:
         mb = 10000
     shell:
         """
-            export sample="{wildcards.sample}"
-            export project=SRP091981" "aln_cov={params.aln_cov}" "iden_frac={params.iden_frac}" "sec_rat={params.sec_rat}" \
+            sample="{wildcards.sample}"
+            project=SRP091981" "aln_cov={params.aln_cov}" "iden_frac={params.iden_frac}" "sec_rat={params.sec_rat}" \
             --ebs /mnt/my-ebs:500:st1:ext4 \
             scripts/lr2rmats.sh && touch {output}
         """
