@@ -16,6 +16,8 @@ st = pandas.read_csv("metadata/metadata.csv",
 
 fl = pandas.read_csv("metadata/filenames.txt",sep="\t")
 st = st.merge(fl, how='inner', on="Run")
+sra = pandas.read_csv("metadata/SRP091981.metadata",sep="\t")
+
 
 def illuminaRuns():
     return(st.loc[st['Platform'] == 'ILLUMINA']['Run'].tolist())
@@ -106,6 +108,16 @@ def getBamsFromSampleName(samp, path_prefix=None, include_bai=True):
             replicate, ext) for replicate in runs for ext in exts]
     return(bams)
 
+def getFastqsFromSampleName(samp, path_prefix=None, include_bai=True):
+    exts = ['_1.fastq.gz','_2.fastq.gz']
+    runs = getRunsFromSampleName(samp)
+    if path_prefix:
+        fastqs = ["{0}/{1}{2}".format(
+            path_prefix, replicate, ext) for replicate in runs for ext in exts]
+    else:
+        fastqs = ["{0}{1}".format(
+            replicate, ext) for replicate in runs for ext in exts]
+    return(fastqs)
 
 def getRunsFromSampleName(samp):
     #accept either dosage nicknames or the actual sample name
@@ -119,6 +131,34 @@ def getfulldosagename(nickname):
     return(dosageTable[nickname])
 
 
+
+
+def printDoseMintieSymlinks(treatment):
+    files=getFastqsFromSampleName(treatment)
+    print("mkdir -p mintiesymlinks/{}".format(treatment))
+    for f in files:
+        print("ln -s ../../SRP091981/{0} mintiesymlinks/{1}/{0}".format(f,treatment))
+
+
+
 dosageTable = {'untreated': ['Untreated HCT116'],  '0.5': ['0.5 uM T3 treated HCT116'], '0.1': ['0.1 uM T3 treated HCT116'], '0.05': ['0.05 uM T3 treated HCT116'], '1.0': ['1.0 uM T3 treated HCT116'],'5.0':['5 uM T3 treated HCT116'],
                'untreated184': ['Untreated 184-hTert'], '0.5-184': ['0.5 uM T3 treated 184-hTert'], '1.0-184': ['1.0 uM T3 treated 184-hTert'], '5.0-184': ['5.0 uM T3 treated 184-hTert']}
 dosageTable['treated']=dosageTable['0.5']+dosageTable['0.1']+dosageTable['0.05']+dosageTable['1.0']
+
+def printAllMintieSymlinks():
+    for dose in dosageTable:
+        printDoseMintieSymlinks(dose)
+
+
+def getSUPPAconfig(dose):
+    runs = getRunsFromSampleName(dose)
+    for run in runs:
+        print('  - "{0}"'.format(run))
+
+#metautils.printSuppaComparison("treated","untreated")
+#metautils.printSuppaComparison("0.5","untreated")
+def printSuppaComparison(experiment,control):
+    print("EXPERIMENT:")
+    getSUPPAconfig(experiment)
+    print("CONTROL:")
+    getSUPPAconfig(control)

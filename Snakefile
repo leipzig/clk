@@ -182,15 +182,17 @@ rule run_rmatsiso_from_bam:
             sh scripts/isomodule.sh
             """
 
+#gtf = "gencode.v28.annotation.gtf",
 rule run_rmatsiso_from_manifest:
     input: untreated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample1),path_prefix=RAWDIR),
            treated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample2),path_prefix=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
-    output: manifest=RAWDIR+"/{sample1}_vs_{sample2}/done"
+    output: manifest=RAWDIR+"/{sample1}_vs_{sample2}/ISO_module"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
             mb = lambda wildcards: metautils.getECS('foo','mb','IsoModule'),
-            gtf = "gencode.v28.annotation.gtf",
-            jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2)
+            gtf = "genes.gtf",
+            jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2),
+            outdir = RAWDIR+"/{sample1}_vs_{sample2}/"
     shell: """
             untreated="{input.untreated}"
             treated="{input.treated}"
@@ -199,7 +201,7 @@ rule run_rmatsiso_from_manifest:
             project="SRP091981"
             bytes="{params.bytes}"
             gtf="{params.gtf}" 
-            python3 /rMATS-ISO-master/rMATS-ISO.py  --in-gtf GRCh38_star/${gtf} --in-bam manifest.list -o ${comparison}
+            rMATS-ISO.py  --in-gtf GRCh38_star/${gtf} --in-bam {input.manifest} -o ${params.outdir}
             """
 
 rule run_rmatsturbo_from_manifest:
@@ -233,7 +235,7 @@ rule run_rmatssashimi_from_manifest:
     input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,path_prefix=RAWDIR),
            treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,path_prefix=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt",
-           rmats=RAWDIR+"-turbo/{sample1}_vs_{sample2}/done"
+           rmats=RAWDIR+"-turbo/{sample1}_vs_{sample2}/rmats.out.txt"
     output: manifest=RAWDIR+"-sashimi/{sample1,[a-z0-9.-]+}_vs_{sample2,[a-z0-9.-]+}/done"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
             mb = lambda wildcards: metautils.getECS('foo','mb','IsoModule'),
@@ -241,82 +243,73 @@ rule run_rmatssashimi_from_manifest:
             reftx = "GRCh38_star",
             jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2+'_sashimi')
     shell: """
-            untreated="{input.untreated}"
-            treated="{input.treated}"
-            manifest="{input.manifest}"
-            comparison="{wildcards.sample1}_vs_{wildcards.sample2}"
-            project="SRP091981-turbo"
-            bytes="{params.bytes}"
-            gtf="{params.gtf}" 
-            reftx="{params.reftx}"
-            gtf="{params.gtf}"
-            sample1="{wildcards.sample1}"
-            sample2="{wildcards.sample2}"
-            project="SRP091981-turbo"
-            destination="SRP091981-sashimi"
+            export EDITOR=emacs
             mkdir -p SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/SE SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A5SS
             mkdir -p SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A3SS SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/MXE
             mkdir -p SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/RI
-            Rscript scripts/filterRmats.R SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/SE.MATS.JC.txt
-            Rscript scripts/filterRmats.R SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A5SS.MATS.JC.txt
-            Rscript scripts/filterRmats.R SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A3SS.MATS.JC.txt
-            Rscript scripts/filterRmats.R SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/MXE.MATS.JC.txt
-            Rscript scripts/filterRmats.R SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/RI.MATS.JC.txt
+            Rscript scripts/filterRmats.R SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/SE.MATS.JC.txt omit
+            Rscript scripts/filterRmats.R SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/A5SS.MATS.JC.txt omit
+            Rscript scripts/filterRmats.R SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/A3SS.MATS.JC.txt omit
+            Rscript scripts/filterRmats.R SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/MXE.MATS.JC.txt omit
+            Rscript scripts/filterRmats.R SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/RI.MATS.JC.txt omit
             
             #some of these might fail
             set +e
             
-            wc -l SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/*filtered.txt || echo "no eligible files"
-            echo "" > sashimi/rmats-sashimi.out.txt
-            test -f SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/SE.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
-                              --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+            truncate -s 0 SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/rmats-sashimi.out.txt
+            
+            #wc -l SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/*filtered.txt || echo "no eligible files"
+            test -f SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/SE.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python scripts/manifest_to_csl.py {input.manifest} 1 .` \
+                              --b2 `python scripts/manifest_to_csl.py {input.manifest} 2 .` \
                               -t SE \
-                              -e results/SE.MATS.JC.filtered.txt \
-                              --l1 ${sample1} \
-                              --l2 ${sample2} \
+                              -e SRP091981-turbo/SE.MATS.JC.filtered.txt \
+                              --l1 {wildcards.sample1} \
+                              --l2 {wildcards.sample2} \
                               --exon_s 1 \
                               --intron_s 5 \
-                              -o sashimi/SE >> sashimi/rmats-sashimi.out.txt 2>&1
+                              -o SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/SE >> SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/rmats-sashimi.out.txt 2>&1
             
-            test -f SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A5SS.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
-                              --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+            test -f SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/A5SS.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python scripts/manifest_to_csl.py {input.manifest} 1 .` \
+                              --b2 `python scripts/manifest_to_csl.py {input.manifest} 2 .` \
                               -t A5SS \
-                              -e results/A5SS.MATS.JC.filtered.txt \
-                              --l1 ${sample1} \
-                              --l2 ${sample2} \
+                              -e SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/A5SS.MATS.JC.filtered.txt \
+                              --l1 {wildcards.sample1} \
+                              --l2 {wildcards.sample2} \
                               --exon_s 1 \
                               --intron_s 5 \
-                              -o sashimi/A5SS > sashimi/rmats-sashimi.out.txt 2>&1
+                              -o SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A5SS > SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/rmats-sashimi.out.txt 2>&1
             
-            test -f results/A3SS.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
-                              --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+            test -f SRP091981-turbo/A3SS.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python scripts/manifest_to_csl.py {input.manifest} 1 .` \
+                              --b2 `python scripts/manifest_to_csl.py {input.manifest} 2 .` \
                               -t A3SS \
-                              -e results/A3SS.MATS.JC.filtered.txt \
-                              --l1 ${sample1} \
-                              --l2 ${sample2} \
+                              -e SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/A3SS.MATS.JC.filtered.txt \
+                              --l1 {wildcards.sample1} \
+                              --l2 {wildcards.sample2} \
                               --exon_s 1 \
                               --intron_s 5 \
-                              -o sashimi/A3SS >> sashimi/rmats-sashimi.out.txt 2>&1
+                              -o SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/A3SS >> SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/rmats-sashimi.out.txt 2>&1
             
-            test -f results/MXE.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
-                              --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+            test -f SRP091981-turbo/MXE.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python scripts/manifest_to_csl.py {input.manifest} 1 .` \
+                              --b2 `python scripts/manifest_to_csl.py {input.manifest} 2 .` \
                               -t MXE \
-                              -e results/MXE.MATS.JC.filtered.txt \
-                              --l1 ${sample1} \
-                              --l2 ${sample2} \
+                              -e SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/MXE.MATS.JC.filtered.txt \
+                              --l1 {wildcards.sample1} \
+                              --l2 {wildcards.sample2} \
                               --exon_s 1 \
                               --intron_s 5 \
-                              -o sashimi/MXE >> sashimi/rmats-sashimi.out.txt 2>&1
+                              -o SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/MXE >> SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/rmats-sashimi.out.txt 2>&1
             
-            test -f results/RI.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python2.7 /manifest_to_csl.py manifest.list 1 .` \
-                              --b2 `python2.7 /manifest_to_csl.py manifest.list 2 .` \
+            test -f SRP091981-turbo/RI.MATS.JC.filtered.txt && rmats2sashimiplot --b1 `python scripts/manifest_to_csl.py {input.manifest} 1 .` \
+                              --b2 `python scripts/manifest_to_csl.py {input.manifest} 2 .` \
                               -t RI \
-                              -e results/RI.MATS.JC.filtered.txt \
-                              --l1 ${sample1} \
-                              --l2 ${sample2} \
+                              -e SRP091981-turbo/{wildcards.sample1}_vs_{wildcards.sample2}/RI.MATS.JC.filtered.txt \
+                              --l1 {wildcards.sample1} \
+                              --l2 {wildcards.sample2} \
                               --exon_s 1 \
                               --intron_s 5 \
-                              -o sashimi/RI >> sashimi/rmats-sashimi.out.txt 2>&1
+                              -o SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/RI >> SRP091981-sashimi/{wildcards.sample1}_vs_{wildcards.sample2}/rmats-sashimi.out.txt 2>&1
+                              
+            touch {output}
             """
 
 rule bamindex:
@@ -342,7 +335,7 @@ rule subsample:
             sh scripts/subsample.sh
             """
 
-rule rmatsiso:
+rule rmatsisooneoff:
     input: untreated=expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", ext=['bam','bam.bai'], sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
            treated=expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", ext=['bam','bam.bai'], sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),
            manifest="untreatedvslowdose.manifest.txt"
@@ -451,3 +444,42 @@ rule sam_novel_gtf:
             scripts/lr2rmats.sh && touch {output}
         """
 
+rule fetchtx:
+    output: "refs/GRCh38/Sequence/Transcriptome/gencode.v38.transcripts.fa.gz"
+    shell: " wget -O {output} http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/gencode.v38.transcripts.fa.gz"
+
+rule fetchgencodegtf:
+    shell: "wget -O refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf.gz http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/gencode.v38.annotation.gtf.gz"
+
+rule salmonindex:
+    input: "refs/GRCh38/Sequence/Transcriptome/gencode.v38.transcripts.fa.gz"
+    output: "refs/gencode.salmon.v38/versionInfo.json"
+    params: refdir = "refs/gencode.salmon.v38/"
+    shell:
+        """
+        salmon index -t {input} -i {params.refdir}
+        """
+        
+        
+rule salmonquant:
+    input: ref = "refs/gencode.salmon.v38/versionInfo.json", pair1 = RAWDIR+"/{sample}_1.fastq.gz", pair2 = RAWDIR+"/{sample}_2.fastq.gz"
+    output: RAWDIR+"/salmon/{sample}/quant.sf"
+    params: outdir = RAWDIR+"/salmon/{sample}"
+    threads: 4
+    shell:
+        """
+        salmon quant -i refs/gencode.salmon.v38 -l ISF --gcBias -1 {input.pair1} -2 {input.pair2} -p {threads} -o {params.outdir}
+        """
+        
+rule illumina_salmon:
+    input: expand(RAWDIR+"/salmon/{sampleids}/quant.sf", sampleids=ILLUMINA_SRA)
+
+rule suppaindex:
+    # It requires python3 and pandas library (pip install pandas)
+    # -k indicates the row used as the index
+    # -f indicates the column to be extracted from the Salmon output
+    #cat iso_tpm.txt | sed -e 's/|\S*//' > iso_tpm_enst.txt
+    output: "iso_tpm.txt"
+    shell: """
+           multipleFieldSelection.py -i SRP091981/salmon/*/quant.sf -k 1 -f 4 -o iso_tpm.txt
+           """
