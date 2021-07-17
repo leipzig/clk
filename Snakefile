@@ -39,7 +39,7 @@ rule illumina_index:
 
 
 rule s3_pacbio_files:
-    input: expand(RAWDIR+"/{sampleids}.fastq.gz", sampleids=PACBIO_SRA)
+    input: expand(RAWDIR+"/{sampleids}.fastq", sampleids=PACBIO_SRA)
 
 rule pacbio_align:
     input: expand(RAWDIR+"/{sampleids}.sam", sampleids=PACBIO_SRA)
@@ -48,7 +48,8 @@ rule pacbio_lr2rmats:
     input: expand(RAWDIR+"/{sampleids}_sam_novel.gtf", sampleids=PACBIO_SRA)
 
 rule allfiles:
-    input: expand(RAWDIR+"/{sampleids}_{pair}.fastq.gz", sampleids=ILLUMINA_SRA, pair=[1,2]), expand(RAWDIR+"/{sampleids}.fastq.gz", sampleids=PACBIO_SRA)
+    input: ill = expand(RAWDIR+"/{sampleids}_{pair}.fastq.gz", sampleids=ILLUMINA_SRA, pair=[1,2]),
+           pac = expand(RAWDIR+"/{sampleids}.fastq", sampleids=PACBIO_SRA)
 
 rule fetchpair_from_aws:
     output: pair1 = RAWDIR+"/{accession}_1.fastq.gz",
@@ -58,14 +59,26 @@ rule fetchpair_from_aws:
         s3pair2 = metautils.st.loc[metautils.st['Run'] == wildcards.accession]['Pair2Filename'].to_string(index=False).replace(' ','')
         print(s3pair1)
         if wildcards.accession in metautils.pacbioRuns():
+            raise ValueError('Not sure this should produce paired')
             #pair1 correspond to the bas.h5
             shell("wget https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair1))
-            shell("bash5tools.py {0} --outFilePrefix {1}".format(s3pair1,wildcards.accession))
+            shell("~/.local/bin/bash5tools.py {0} --outFilePrefix {1}".format(s3pair1,wildcards.accession))
         	#shell("bedtools bamtofastq -i {0} -fq {1} -fq2 {2}".format(output.pair1,output.pair2))
         else:
             shell("wget -O {2} https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair1,output.pair1))
             shell("wget -O {2} https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair2,output.pair2))
-       
+
+rule fetchpacbio_from_aws:
+    output: pair1 = RAWDIR+"/{accession}.fastq",
+    run:
+        s3pair1 = metautils.st.loc[metautils.st['Run'] == wildcards.accession]['Pair1Filename'].to_string(index=False).replace(' ','')
+        s3pair2 = metautils.st.loc[metautils.st['Run'] == wildcards.accession]['Pair2Filename'].to_string(index=False).replace(' ','')
+        print(s3pair1)
+        if wildcards.accession in metautils.pacbioRuns():
+            #pair1 correspond to the bas.h5
+            shell("wget https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair1))
+            shell("~/.local/bin/bash5tools.py {0} --outFilePrefix {1}/{2} --outType fastq".format(s3pair1,RAWDIR,wildcards.accession))
+
 
 # Let's not do this - I just did a bulk transfer of SRP091981
 # rule fetchpair_from_sra:
@@ -142,7 +155,7 @@ rule star_align:
 # minimap mapping for long reads
 rule minimap_map:
     input:
-        "SRP091981/{sample}.fasta"
+        "SRP091981/{sample}.fastq"
     output:
         "SRP091981/{sample}.sam"
     threads:
@@ -156,9 +169,7 @@ rule minimap_map:
         mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','minimap')
     shell:
         """
-        sample="{wildcards.sample}""
-        project="SRP091981"
-        sh scripts/minimap.sh
+        minimap2 -ax splice -ub -t {threads} GRCh38_minimap/genome.fa.smmi {input} > {output} 2> {wildcards.sample}.minimap.log
         """
 
 rule generate_two_way_manifest:
@@ -438,10 +449,8 @@ rule sam_novel_gtf:
         mb = 10000
     shell:
         """
-            sample="{wildcards.sample}"
-            project=SRP091981" "aln_cov={params.aln_cov}" "iden_frac={params.iden_frac}" "sec_rat={params.sec_rat}" \
-            --ebs /mnt/my-ebs:500:st1:ext4 \
-            scripts/lr2rmats.sh && touch {output}
+        lr2rmats filter {input.sam} -r GRCh38_star/rRNA_tx.gtf -v {params.aln_cov} -q {params.iden_frac} -s {params.sec_rat}  | samtools sort -@ {threads} > {output.filtered_bam}
+        lr2rmats update-gtf {output.filtered_bam} GRCh38_star/genes.gtf > {output.sam_gtf}
         """
 
 rule fetchtx:
@@ -460,19 +469,29 @@ rule salmonindex:
         salmon index -t {input} -i {params.refdir}
         """
         
-        
 rule salmonquant:
     input: ref = "refs/gencode.salmon.v38/versionInfo.json", pair1 = RAWDIR+"/{sample}_1.fastq.gz", pair2 = RAWDIR+"/{sample}_2.fastq.gz"
-    output: RAWDIR+"/salmon/{sample}/quant.sf"
-    params: outdir = RAWDIR+"/salmon/{sample}"
+    output: RAWDIR+"/salmon/paired/{sample}/quant.sf"
+    params: outdir = RAWDIR+"/salmon/paired/{sample}"
     threads: 4
     shell:
         """
         salmon quant -i refs/gencode.salmon.v38 -l ISF --gcBias -1 {input.pair1} -2 {input.pair2} -p {threads} -o {params.outdir}
         """
+
+rule salmonquantsingle:
+    input: ref = "refs/gencode.salmon.v38/versionInfo.json", single = RAWDIR+"/{sample}.fastq"
+    output: RAWDIR+"/salmon/single/{sample}/quant.sf"
+    params: outdir = RAWDIR+"/salmon/single/{sample}"
+    threads: 4
+    shell:
+        """
+        salmon quant -i refs/gencode.salmon.v38 -l ISF --gcBias -r {input.single} -p {threads} -o {params.outdir}
+        """
         
-rule illumina_salmon:
-    input: expand(RAWDIR+"/salmon/{sampleids}/quant.sf", sampleids=ILLUMINA_SRA)
+rule salmon:
+    input: expand(RAWDIR+"/salmon/paired/{sampleids}/quant.sf", sampleids=ILLUMINA_SRA), expand(RAWDIR+"/salmon/single/{sampleids}/quant.sf", sampleids=PACBIO_SRA) 
+    
 
 rule suppaindex:
     # It requires python3 and pandas library (pip install pandas)
@@ -481,5 +500,11 @@ rule suppaindex:
     #cat iso_tpm.txt | sed -e 's/|\S*//' > iso_tpm_enst.txt
     output: "iso_tpm.txt"
     shell: """
-           multipleFieldSelection.py -i SRP091981/salmon/*/quant.sf -k 1 -f 4 -o iso_tpm.txt
+           multipleFieldSelection.py -i SRP091981/salmon/*/*/quant.sf -k 1 -f 4 -o iso_tpm.txt
            """
+
+rule arribarefs:
+    shell:
+        """
+        /home/ec2-user/miniconda3/envs/clk/var/lib/arriba/download_references.sh GRCh38+GENCODE28
+        """
