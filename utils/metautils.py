@@ -17,7 +17,10 @@ st = pandas.read_csv("metadata/metadata.csv",
 fl = pandas.read_csv("metadata/filenames.txt",sep="\t")
 st = st.merge(fl, how='inner', on="Run")
 sra = pandas.read_csv("metadata/SRP091981.metadata",sep="\t")
-
+#st = st.merge(sra, how='inner', on="Run")
+sra = sra.rename(columns={'run_accession': 'Run'})  
+sra['stranded']=sra['experiment_title'].str.contains('(stranded)', regex=False)
+st = st.merge(sra,how='inner', on="Run")
 
 def illuminaRuns():
     return(st.loc[st['Platform'] == 'ILLUMINA']['Run'].tolist())
@@ -99,13 +102,16 @@ def getBamsFromSampleName(samp, path_prefix=None, include_bai=True):
         exts = ['bam', 'bam.bai']
     else:
         exts = ['bam']
+    platform_ext = {'ILLUMINA':'Aligned.sortedByCoord.out','PACBIO_SMRT':'filtered'}
     runs = getRunsFromSampleName(samp)
-    if path_prefix:
-        bams = ["{0}/{1}.Aligned.sortedByCoord.out.{2}".format(
-            path_prefix, replicate, ext) for replicate in runs for ext in exts]
-    else:
-        bams = ["{0}.Aligned.sortedByCoord.out.{1}".format(
-            replicate, ext) for replicate in runs for ext in exts]
+    bams = []
+    for platform in ['ILLUMINA','PACBIO_SMRT']:
+        if path_prefix:
+                bams += ["{0}/{1}.{3}.{2}".format(
+                    path_prefix, replicate, ext, platform_ext[platform]) for replicate in runs for ext in exts]
+        else:
+            bams += ["{0}.{2}.{1}".format(
+                replicate, ext, platform_ext[platform]) for replicate in runs for ext in exts]
     return(bams)
 
 def getFastqsFromSampleName(samp, path_prefix=None, include_bai=True):
@@ -119,13 +125,18 @@ def getFastqsFromSampleName(samp, path_prefix=None, include_bai=True):
             replicate, ext) for replicate in runs for ext in exts]
     return(fastqs)
 
-def getRunsFromSampleName(samp):
+def getRunsFromSampleName(samp,platform=None):
     #accept either dosage nicknames or the actual sample name
-    if samp.lower() in dosageTable:
-        return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) & (st['Platform'] == 'ILLUMINA')]['Run'].tolist())
+    if platform is not None:
+        if samp.lower() in dosageTable:
+            return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) & (st['Platform'] == platform)]['Run'].tolist())
+        else:
+            return(st.loc[(st['SampleName']==samp) & (st['Platform'] == platform)]['Run'].tolist())
     else:
-        return(st.loc[(st['SampleName']==samp) & (st['Platform'] == 'ILLUMINA')]['Run'].tolist())
-
+        if samp.lower() in dosageTable:
+            return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()]))]['Run'].tolist())
+        else:
+            return(st.loc[(st['SampleName']==samp)]['Run'].tolist())
 
 def getfulldosagename(nickname):
     return(dosageTable[nickname])
@@ -144,6 +155,7 @@ def printDoseMintieSymlinks(treatment):
 dosageTable = {'untreated': ['Untreated HCT116'],  '0.5': ['0.5 uM T3 treated HCT116'], '0.1': ['0.1 uM T3 treated HCT116'], '0.05': ['0.05 uM T3 treated HCT116'], '1.0': ['1.0 uM T3 treated HCT116'],'5.0':['5 uM T3 treated HCT116'],
                'untreated184': ['Untreated 184-hTert'], '0.5-184': ['0.5 uM T3 treated 184-hTert'], '1.0-184': ['1.0 uM T3 treated 184-hTert'], '5.0-184': ['5.0 uM T3 treated 184-hTert']}
 dosageTable['treated']=dosageTable['0.5']+dosageTable['0.1']+dosageTable['0.05']+dosageTable['1.0']
+dosageTable['treated184']=dosageTable['0.5-184']+dosageTable['1.0-184']+dosageTable['5.0-184']
 
 def printAllMintieSymlinks():
     for dose in dosageTable:

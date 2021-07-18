@@ -17,17 +17,17 @@ import os
 import pandas as pd
 
 # local rules
-localrules: all, create_result_dir, extract_expression, \
-    merge_SE, merge_MX, merge_RI, merge_AF, merge_AL, merge_A3, merge_A5, \
-    merge_isoform, merge_differential_splicing
+localrules: suppa_all, suppa_create_result_dir, suppa_extract_expression, \
+    suppa_merge_SE, suppa_merge_MX, suppa_merge_RI, suppa_merge_AF, suppa_merge_AL, suppa_merge_A3, suppa_merge_A5, \
+    suppa_merge_isoform, suppa_merge_differential_splicing
 
-configfile: "0.5.yaml"
+configfile: "treated_vs_untreated.yaml"
 
 ##############################################################################
 ### Target rule with final output of the pipeline
 ##############################################################################
 
-rule all:
+rule suppa_all:
     input:
         TSV_SE_ALL = expand(os.path.join("{output_dir}", "SE_ALL.psi"), \
             output_dir=config["result_dir"]),
@@ -57,7 +57,7 @@ rule all:
 ### Create directories for the result
 ##############################################################################
 
-rule create_result_dir:
+rule suppa_create_result_dir:
     output:
         TMP_output = temp(os.path.join("{output_dir}", "dir_created"))
     params:
@@ -170,7 +170,7 @@ rule suppa_generate_transcript_events:
 ### Extract transcripts expression per sample
 ##############################################################################
 
-rule extract_expression:
+rule suppa_extract_expression:
     input:
         TMP_output = os.path.join("{output_dir}", "dir_created")
     output:
@@ -183,7 +183,7 @@ rule extract_expression:
     log:
         LOG_local_log = \
             os.path.join("{output_dir}", "local_log", \
-                "extract_expression.log"),
+                "suppa_extract_expression.log"),
     run:
         # split transcript expression table column-wise and condition-wise
         os.mkdir(output.DIR_quantification_dir)
@@ -535,7 +535,7 @@ rule suppa_psi_per_isoform:
 ### Merge multiple tables
 ##############################################################################
 
-rule merge_SE:
+rule suppa_merge_SE:
     input:
         expand(os.path.join("{output_dir}", "{sample}", "SE.psi"), \
             output_dir=config["result_dir"], \
@@ -575,7 +575,7 @@ rule merge_SE:
         fname = os.path.join(params.DIR_output_dir,"SE_ALL.psi")
         merged_df.to_csv(fname, sep="\t", index_label=False)
 
-rule merge_MX:
+rule suppa_merge_MX:
     input:
         expand(os.path.join("{output_dir}", "{sample}", "MX.psi"), \
             output_dir=config["result_dir"], \
@@ -615,7 +615,7 @@ rule merge_MX:
         fname = os.path.join(params.DIR_output_dir,"MX_ALL.psi")
         merged_df.to_csv(fname, sep="\t", index_label=False)
 
-rule merge_RI:
+rule suppa_merge_RI:
     input:
         expand(os.path.join("{output_dir}", "{sample}", "RI.psi"), \
             output_dir=config["result_dir"], \
@@ -655,7 +655,7 @@ rule merge_RI:
         fname = os.path.join(params.DIR_output_dir,"RI_ALL.psi")
         merged_df.to_csv(fname, sep="\t", index_label=False)
 
-rule merge_AF:
+rule suppa_merge_AF:
     input:
         expand(os.path.join("{output_dir}", "{sample}", "AF.psi"), \
             output_dir=config["result_dir"], \
@@ -695,7 +695,7 @@ rule merge_AF:
         fname = os.path.join(params.DIR_output_dir,"AF_ALL.psi")
         merged_df.to_csv(fname, sep="\t", index_label=False)
 
-rule merge_AL:
+rule suppa_merge_AL:
     input:
         expand(os.path.join("{output_dir}", "{sample}", "AL.psi"), \
             output_dir=config["result_dir"], \
@@ -735,7 +735,7 @@ rule merge_AL:
         fname = os.path.join(params.DIR_output_dir,"AL_ALL.psi")
         merged_df.to_csv(fname, sep="\t", index_label=False)
 
-rule merge_A3:
+rule suppa_merge_A3:
     input:
         expand(os.path.join("{output_dir}", "{sample}", "A3.psi"), \
             output_dir=config["result_dir"], \
@@ -775,7 +775,7 @@ rule merge_A3:
         fname = os.path.join(params.DIR_output_dir,"A3_ALL.psi")
         merged_df.to_csv(fname, sep="\t", index_label=False)
 
-rule merge_A5:
+rule suppa_merge_A5:
     input:
         expand(os.path.join("{output_dir}", "{sample}", "A5.psi"), \
             output_dir=config["result_dir"], \
@@ -815,7 +815,7 @@ rule merge_A5:
         fname = os.path.join(params.DIR_output_dir,"A5_ALL.psi")
         merged_df.to_csv(fname, sep="\t", index_label=False)
 
-rule merge_isoform:
+rule suppa_merge_isoform:
     input:
         expand(os.path.join("{output_dir}", "{sample}_isoform.psi"), \
             output_dir=config["result_dir"], \
@@ -878,6 +878,7 @@ rule suppa_diffSplice_SE:
         area = "1000",
         lower_bound = config["lower_bound"],
         gene_correction = "--gene-correction",
+        nan_threshold = config["nan_threshold"],
         TSV_control_quant = \
             os.path.join("{output_dir}", "quantification", "CONTROL.tsv"),
         TSV_experiment_quant = \
@@ -906,7 +907,7 @@ rule suppa_diffSplice_SE:
         --psi {input.TSV_SE_CONTROL} {input.TSV_SE_EXPERIMENT} \
         --tpm {params.TSV_control_quant} {params.TSV_experiment_quant} \
         --area {params.area} \
-        -gc \
+        --nan-threshold {params.nan_threshold} \
         --lower-bound {params.lower_bound} \
         {params.gene_correction} \
         --output {params.STRING_output_prefix} \
@@ -1309,7 +1310,7 @@ rule suppa_diffSplice_transcripts:
 ### Merge differential splicing analysis results of local events
 ##############################################################################
 
-rule merge_differential_splicing:
+rule suppa_merge_differential_splicing:
     input:
         TSV_SE_psivec = os.path.join("{output_dir}", "Delta_psi_SE.psivec"),
         TSV_SE_dpsi = os.path.join("{output_dir}", "Delta_psi_SE.dpsi"),

@@ -69,15 +69,19 @@ rule fetchpair_from_aws:
             shell("wget -O {2} https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair2,output.pair2))
 
 rule fetchpacbio_from_aws:
-    output: pair1 = RAWDIR+"/{accession}.fastq",
+    output: pair1 = RAWDIR+"/{accession}.fastq.gz"
     run:
         s3pair1 = metautils.st.loc[metautils.st['Run'] == wildcards.accession]['Pair1Filename'].to_string(index=False).replace(' ','')
         s3pair2 = metautils.st.loc[metautils.st['Run'] == wildcards.accession]['Pair2Filename'].to_string(index=False).replace(' ','')
+        ena = metautils.st.loc[metautils.st['Run'] == wildcards.accession]['ena_fastq_http_1'].to_string(index=False).replace(' ','')
         print(s3pair1)
         if wildcards.accession in metautils.pacbioRuns():
             #pair1 correspond to the bas.h5
-            shell("wget https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair1))
-            shell("~/.local/bin/bash5tools.py {0} --outFilePrefix {1}/{2} --outType fastq".format(s3pair1,RAWDIR,wildcards.accession))
+            shell("wget -O {output.pair1} {2}".format(wildcards.accession,ena))
+            
+            # terrible quality
+            #shell("wget https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair1))
+            #shell("~/.local/bin/bash5tools.py {0} --outFilePrefix {1}/{2} --outType fastq".format(s3pair1,RAWDIR,wildcards.accession))
 
 
 # Let's not do this - I just did a bulk transfer of SRP091981
@@ -194,9 +198,11 @@ rule run_rmatsiso_from_bam:
             """
 
 #gtf = "gencode.v28.annotation.gtf",
+
+#metautils.getfulldosagename(wildcards.sample1) no longer necessary
 rule run_rmatsiso_from_manifest:
-    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample1),path_prefix=RAWDIR),
-           treated=lambda wildcards: metautils.getBamsFromSampleName(metautils.getfulldosagename(wildcards.sample2),path_prefix=RAWDIR),
+    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,path_prefix=RAWDIR),
+           treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,path_prefix=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
     output: manifest=RAWDIR+"/{sample1}_vs_{sample2}/ISO_module"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
@@ -205,14 +211,11 @@ rule run_rmatsiso_from_manifest:
             jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2),
             outdir = RAWDIR+"/{sample1}_vs_{sample2}/"
     shell: """
-            untreated="{input.untreated}"
-            treated="{input.treated}"
-            manifest="{input.manifest}"
             comparison="{wildcards.sample1}_vs_{wildcards.sample2}"
             project="SRP091981"
             bytes="{params.bytes}"
             gtf="{params.gtf}" 
-            rMATS-ISO.py  --in-gtf GRCh38_star/${gtf} --in-bam {input.manifest} -o ${params.outdir}
+            rMATS-ISO.py  --in-gtf GRCh38_star/{params.gtf} --in-bam {input.manifest} -o ${params.outdir}
             """
 
 rule run_rmatsturbo_from_manifest:
@@ -430,11 +433,16 @@ rule minimap_idx:
     shell:
         "{params.minimap} -x splice {input} -d {output} -t {threads} 2> {log}"
 
+rule rrnagtf:
+    output: "GRCh38_star/rRNA_tx.gtf"
+    shell: "curl https://raw.githubusercontent.com/zxl124/rRNA_gtfs/master/UCSC/hg38.gtf  > {output}"
+    
 rule sam_novel_gtf:
     input:
         sam=RAWDIR+"/{sample}.sam",
+        gtf = "GRCh38_star/rRNA_tx.gtf"
     output:
-        filtered_bam=RAWDIR+"/{sample}.filtered.bam",
+        filtered_bam=RAWDIR+"/{sample}.filtered.bam",filtered_bai=RAWDIR+"/{sample}.filtered.bam.bai",
         sam_gtf=RAWDIR+"/{sample}_sam_novel.gtf"
     threads:
         config["novel_gtf"]["threads"]
@@ -450,6 +458,7 @@ rule sam_novel_gtf:
     shell:
         """
         lr2rmats filter {input.sam} -r GRCh38_star/rRNA_tx.gtf -v {params.aln_cov} -q {params.iden_frac} -s {params.sec_rat}  | samtools sort -@ {threads} > {output.filtered_bam}
+        samtools index {output.filtered_bam}
         lr2rmats update-gtf {output.filtered_bam} GRCh38_star/genes.gtf > {output.sam_gtf}
         """
 
@@ -460,13 +469,15 @@ rule fetchtx:
 rule fetchgencodegtf:
     shell: "wget -O refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf.gz http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_38/gencode.v38.annotation.gtf.gz"
 
+#some of the read lengths in SRP091981 are very short (<45)
+# a lower k-mer index was chosen
 rule salmonindex:
     input: "refs/GRCh38/Sequence/Transcriptome/gencode.v38.transcripts.fa.gz"
     output: "refs/gencode.salmon.v38/versionInfo.json"
     params: refdir = "refs/gencode.salmon.v38/"
     shell:
         """
-        salmon index -t {input} -i {params.refdir}
+        salmon index --gencode -t {input} -i {params.refdir} --kmerLen 17
         """
         
 rule salmonquant:
@@ -476,7 +487,7 @@ rule salmonquant:
     threads: 4
     shell:
         """
-        salmon quant -i refs/gencode.salmon.v38 -l ISF --gcBias -1 {input.pair1} -2 {input.pair2} -p {threads} -o {params.outdir}
+        salmon quant -i refs/gencode.salmon.v38 -l A --gcBias -1 {input.pair1} -2 {input.pair2} -p {threads} -o {params.outdir}
         """
 
 rule salmonquantsingle:
@@ -486,7 +497,7 @@ rule salmonquantsingle:
     threads: 4
     shell:
         """
-        salmon quant -i refs/gencode.salmon.v38 -l ISF --gcBias -r {input.single} -p {threads} -o {params.outdir}
+        salmon quant -i refs/gencode.salmon.v38 -l A --minAssignedFrags 1 -r {input.single} -p {threads} -o {params.outdir}
         """
         
 rule salmon:
@@ -500,11 +511,18 @@ rule suppaindex:
     #cat iso_tpm.txt | sed -e 's/|\S*//' > iso_tpm_enst.txt
     output: "iso_tpm.txt"
     shell: """
-           multipleFieldSelection.py -i SRP091981/salmon/*/*/quant.sf -k 1 -f 4 -o iso_tpm.txt
+           multipleFieldSelection.py -i SRP091981/salmon/*/*/quant.sf -k 1 -f 4 -o iso_tpm_deflinehell.txt
+           cat iso_tpm_deflinehell.txt | sed -e 's/|\S*//' > iso_tpm.txt
            """
+
+rule suppapsi:
+    input: "iso_tpm.txt"
+    output: "results/psiPerIsoform_isoform.psi"
+    shell: "suppa.py psiPerIsoform -g refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf -e {input} -o results/psiPerIsoform"
 
 rule arribarefs:
     shell:
         """
         /home/ec2-user/miniconda3/envs/clk/var/lib/arriba/download_references.sh GRCh38+GENCODE28
         """
+
