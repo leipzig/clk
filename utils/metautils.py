@@ -106,15 +106,17 @@ def getBamsFromSampleName(samp, path_prefix=None, include_bai=True):
     runs = getRunsFromSampleName(samp)
     bams = []
     #for platform in ['ILLUMINA','PACBIO_SMRT']:
-        
-        
     if path_prefix:
             bams += ["{0}/{1}.{3}.{2}".format(
                 path_prefix, run, ext, platform_ext[getPlatformFromRun(run)]) for run in runs for ext in exts]
     else:
         bams += ["{0}.{2}.{1}".format(
-            replicate, ext, platform_ext[getPlatformFromRun(run)]) for run in runs for ext in exts]
+            run, ext, platform_ext[getPlatformFromRun(run)]) for run in runs for ext in exts]
     return(bams)
+
+def getPlatformFromRun(run):
+    platform=st.loc[(st['Run']==run)]['Platform'].tolist()[0]
+    return(platform)
 
 def getFastqsFromSampleName(samp, path_prefix=None, include_bai=True):
     exts = ['_1.fastq.gz','_2.fastq.gz']
@@ -127,22 +129,18 @@ def getFastqsFromSampleName(samp, path_prefix=None, include_bai=True):
             replicate, ext) for replicate in runs for ext in exts]
     return(fastqs)
 
-def getPlatformFromRun(run):
-    platform=st.loc[(st['Run']==run)]['Platform'].tolist()[0]
-    return(platform)
-
-def getRunsFromSampleName(samp,platform=None):
+def getRunsFromSampleName(samp,platform=None,stranded=False):
     #accept either dosage nicknames or the actual sample name
     if platform is not None:
         if samp.lower() in dosageTable:
-            return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) & (st['Platform'] == platform)]['Run'].tolist())
+            return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) & (st['Platform'] == platform) & (st['stranded'] == stranded)]['Run'].tolist())
         else:
-            return(st.loc[(st['SampleName']==samp) & (st['Platform'] == platform)]['Run'].tolist())
+            return(st.loc[(st['SampleName']==samp) & (st['Platform'] == platform) & (st['stranded'] == stranded)]['Run'].tolist())
     else:
         if samp.lower() in dosageTable:
-            return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()]))]['Run'].tolist())
+            return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) & (st['stranded'] == stranded)]['Run'].tolist())
         else:
-            return(st.loc[(st['SampleName']==samp)]['Run'].tolist())
+            return(st.loc[(st['SampleName']==samp) & (st['stranded'] == stranded)]['Run'].tolist())
 
 def getfulldosagename(nickname):
     return(dosageTable[nickname])

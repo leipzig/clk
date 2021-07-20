@@ -509,11 +509,9 @@ rule suppaindex:
     # It requires python3 and pandas library (pip install pandas)
     # -k indicates the row used as the index
     # -f indicates the column to be extracted from the Salmon output
-    #cat iso_tpm.txt | sed -e 's/|\S*//' > iso_tpm_enst.txt
-    output: "iso_tpm.txt"
+    #cat iso_tpm_deflinehell.txt | sed -e 's/|\S*//' > iso_tpm.txt
     shell: """
-           multipleFieldSelection.py -i SRP091981/salmon/*/*/quant.sf -k 1 -f 4 -o iso_tpm_deflinehell.txt
-           cat iso_tpm_deflinehell.txt | sed -e 's/|\S*//' > iso_tpm.txt
+           multipleFieldSelection.py -i SRP091981/salmon/*/*/quant.sf -k 1 -f 4 -o iso_tpm.txt
            """
 
 rule suppapsi:
