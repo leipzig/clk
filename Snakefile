@@ -585,7 +585,7 @@ rule callFusionsArriba:
         --chimScoreJunctionNonGTAG 0 --chimScoreSeparation 1 --chimSegmentReadGapMax 3 --chimMultimapNmax 50 \
         --outFileNamePrefix SRP091981/{wildcards.sample}.chim. 
         arriba -x SRP091981/{wildcards.sample}.chim.Aligned.sortedByCoord.out.bam \
-           -g STAR_index_hg38_GENCODE28 -a hg38.fa \
+           -g GENCODE28.gtf -a hg38.fa \
            -b $ARRIBA_FILES/blacklist_hg38_h38_v2.1.0.tsv.gz -k $ARRIBA_FILES/known_fusions_hg38_h38_v2.1.0.tsv.gz \
            -p $ARRIBA_FILES/protein_domains_hg38_h38_v2.1.0.gff3 \
            -o {output}
