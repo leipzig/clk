@@ -127,7 +127,8 @@ rule getStarRefs:
         """
         aws s3 sync s3://clk-splicing/refs/GRCh38/Sequence/STARIndex/ GRCh38_star/
         """
-
+# STAR --runThreadN 16 --runMode genomeGenerate --genomeDir GRCh38_star_2.7.9 --genomeFastaFiles refs/GRCh38/Sequence/WholeGenomeFasta/genome.fa --sjdbGTFfile refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf --sjdbOverhang 99
+#/clk/refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf
 rule star_align:
     input: RAWDIR+"/{sample}_1.fastq.gz", RAWDIR+"/{sample}_2.fastq.gz"
     output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",
@@ -137,9 +138,12 @@ rule star_align:
             RAWDIR+"/{sample}.SJ.out.tab"
     threads: 16
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','STAR'),
-            mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','STAR')
+            mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','STAR'),
+            genomeDir = "GRCh38_star_2.7.9",
+            gtf = "refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf"
     shell: """
             STAR --runMode alignReads \
+                --chimOutType WithinBAM \
                  --outSAMtype BAM SortedByCoordinate \
                  --limitBAMsortRAM {params.bytes} \
                  --readFilesCommand zcat \
@@ -147,8 +151,8 @@ rule star_align:
                  --outFilterMismatchNmax 999   --alignIntronMin 25  \
                  --alignIntronMax 1000000   --alignMatesGapMax 1000000 \
                  --alignSJoverhangMin 8   --alignSJDBoverhangMin 5 \
-                 --sjdbGTFfile GRCh38_star/genes.gtf \
-                 --genomeDir GRCh38_star \
+                 --sjdbGTFfile {params.gtf} \
+                 --genomeDir {params.genomeDir} \
                  --runThreadN {threads} \
                  --outFileNamePrefix SRP091981/{wildcards.sample}.  \
                  --readFilesIn  SRP091981/{wildcards.sample}_1.fastq.gz SRP091981/{wildcards.sample}_2.fastq.gz
@@ -525,3 +529,18 @@ rule arribarefs:
         /home/ec2-user/miniconda3/envs/clk/var/lib/arriba/download_references.sh GRCh38+GENCODE28
         """
 
+rule callFusionsArriba:
+    input: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam"
+    output: RAWDIR+"/{sample}.fusions.tsv"
+    shell:
+        """
+        ARRIBA_FILES=$CONDA_PREFIX/var/lib/arriba
+        arriba -x {input} \
+           -g GRCh38_star/genes.gtf -a GRCh38.fa \
+           -b $ARRIBA_FILES/blacklist_hg38_GRCh38_v2.1.0.tsv.gz -k $ARRIBA_FILES/known_fusions_hg38_GRCh38_v2.1.0.tsv.gz \
+           -p $ARRIBA_FILES/protein_domains_hg38_GRCh38_v2.1.0.gff3 \
+           -o {output}
+        """
+
+rule fusioned:
+    input: expand(RAWDIR+"/{sampleids}.fusions.tsv", sampleids=ILLUMINA_SRA)

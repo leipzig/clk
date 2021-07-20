@@ -145,16 +145,11 @@ def getRunsFromSampleName(samp,platform=None,stranded=False):
 def getfulldosagename(nickname):
     return(dosageTable[nickname])
 
-
-
-
 def printDoseMintieSymlinks(treatment):
     files=getFastqsFromSampleName(treatment)
     print("mkdir -p mintiesymlinks/{}".format(treatment))
     for f in files:
         print("ln -s ../../SRP091981/{0} mintiesymlinks/{1}/{0}".format(f,treatment))
-
-
 
 dosageTable = {'untreated': ['Untreated HCT116'],  '0.5': ['0.5 uM T3 treated HCT116'], '0.1': ['0.1 uM T3 treated HCT116'], '0.05': ['0.05 uM T3 treated HCT116'], '1.0': ['1.0 uM T3 treated HCT116'],'5.0':['5 uM T3 treated HCT116'],
                'untreated184': ['Untreated 184-hTert'], '0.5-184': ['0.5 uM T3 treated 184-hTert'], '1.0-184': ['1.0 uM T3 treated 184-hTert'], '5.0-184': ['5.0 uM T3 treated 184-hTert']}
