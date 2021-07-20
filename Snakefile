@@ -131,11 +131,11 @@ rule getStarRefs:
 #/clk/refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf
 rule star_align:
     input: RAWDIR+"/{sample}_1.fastq.gz", RAWDIR+"/{sample}_2.fastq.gz"
-    output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",
-            RAWDIR+"/{sample}.Log.final.out",
-            RAWDIR+"/{sample}.Log.out",
-            RAWDIR+"/{sample}.Log.progress.out",
-            RAWDIR+"/{sample}.SJ.out.tab"
+    output: RAWDIR+"/{sample}.nochim.Aligned.sortedByCoord.out.bam",
+            RAWDIR+"/{sample}.nochim.Log.final.out",
+            RAWDIR+"/{sample}.nochim.Log.out",
+            RAWDIR+"/{sample}.nochim.Log.progress.out",
+            RAWDIR+"/{sample}.nochim.SJ.out.tab"
     threads: 16
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','STAR'),
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','STAR'),
@@ -154,10 +154,44 @@ rule star_align:
                  --sjdbGTFfile {params.gtf} \
                  --genomeDir {params.genomeDir} \
                  --runThreadN {threads} \
-                 --outFileNamePrefix SRP091981/{wildcards.sample}.  \
+                 --outFileNamePrefix SRP091981/{wildcards.sample}.nochim.  \
                  --readFilesIn  SRP091981/{wildcards.sample}_1.fastq.gz SRP091981/{wildcards.sample}_2.fastq.gz
             
-            samtools index SRP091981/{wildcards.sample}.Aligned.sortedByCoord.out.bam
+            samtools index SRP091981/{wildcards.sample}.nochim.Aligned.sortedByCoord.out.bam
+            """
+            
+rule chimera_star_align:
+    input: RAWDIR+"/{sample}_1.fastq.gz", RAWDIR+"/{sample}_2.fastq.gz"
+    output: RAWDIR+"/{sample}.chim.Aligned.sortedByCoord.out.bam",
+            RAWDIR+"/{sample}.chim.Log.final.out",
+            RAWDIR+"/{sample}.chim.Log.out",
+            RAWDIR+"/{sample}.chim.Log.progress.out",
+            RAWDIR+"/{sample}.chim.SJ.out.tab"
+    threads: 16
+    params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','STAR'),
+            mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','STAR'),
+            genomeDir = "GRCh38_star_2.7.9",
+            gtf = "refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf"
+    shell: """
+            STAR --runMode alignReads \
+            --outFilterMultimapNmax 50 \
+            --peOverlapNbasesMin 10 \
+            --alignSplicedMateMapLminOverLmate 0.5 \
+            --alignSJstitchMismatchNmax 5 -1 5 5 \
+            --chimSegmentMin 10 \
+            --chimOutType WithinBAM HardClip \
+            --chimJunctionOverhangMin 10 \
+            --chimScoreDropMax 30 \
+            --chimScoreJunctionNonGTAG 0 \
+            --chimScoreSeparation 1 \
+            --chimSegmentReadGapMax 3 \
+            --chimMultimapNmax 50 \
+            --genomeDir {params.genomeDir} \
+            --runThreadN {threads} \
+            --outFileNamePrefix SRP091981/{wildcards.sample}.chim.  \
+            --readFilesIn  SRP091981/{wildcards.sample}_1.fastq.gz SRP091981/{wildcards.sample}_2.fastq.gz
+            
+            samtools index SRP091981/{wildcards.sample}.chim.Aligned.sortedByCoord.out.bam
             """
 
 # minimap mapping for long reads
@@ -529,14 +563,16 @@ rule arribarefs:
         /home/ec2-user/miniconda3/envs/clk/var/lib/arriba/download_references.sh GRCh38+GENCODE28
         """
 
+#es refs/GRCh38/Sequence/WholeGenomeFasta/genome.fa --sjdbGTFfile refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf --sjdbOverhang 99
+#/clk/refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf
 rule callFusionsArriba:
-    input: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam"
+    input: RAWDIR+"/{sample}.chim.Aligned.sortedByCoord.out.bam"
     output: RAWDIR+"/{sample}.fusions.tsv"
     shell:
         """
         ARRIBA_FILES=$CONDA_PREFIX/var/lib/arriba
         arriba -x {input} \
-           -g GRCh38_star/genes.gtf -a GRCh38.fa \
+           -g refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf -a refs/GRCh38/Sequence/WholeGenomeFasta/genome.fa \
            -b $ARRIBA_FILES/blacklist_hg38_GRCh38_v2.1.0.tsv.gz -k $ARRIBA_FILES/known_fusions_hg38_GRCh38_v2.1.0.tsv.gz \
            -p $ARRIBA_FILES/protein_domains_hg38_GRCh38_v2.1.0.gff3 \
            -o {output}
