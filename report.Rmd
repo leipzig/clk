@@ -24,7 +24,7 @@ library(dplyr)
 library(stringr)
 library(biomaRt)
 library(Gviz)
-metadata<-read.csv("metadata.csv")
+metadata<-read.csv("metadata/metadata.csv")
 ```
 
 `nrow(metadata)` were obtained
@@ -98,7 +98,7 @@ control<-"untreated"
 ```{r plotdoseresponse}
 em_all<-NULL
 for(dose in doses){
-  em<-read.table(paste0("results/",control,'_vs_',dose,'/EM_out/EM.out'),comment.char = '',strip.white = TRUE, header=TRUE)
+  em<-read.table(paste0("results/iso_",control,'_vs_',dose,'/EM_out/EM.out'),comment.char = '',strip.white = TRUE, header=TRUE)
   em$dose<-as.numeric(dose)
   em$dosestr<-paste0(control,'_vs_',dose)
   if(!is.null(em_all)){
@@ -214,7 +214,7 @@ dose="0.5"
 metadata %>% filter(str_detect(SampleName,dose)) %>% filter(str_detect(SampleName,'T3')) %>% filter(Platform=='ILLUMINA') %>% filter(str_detect(SampleName,'HCT116'))  %>% dplyr::pull(Run) -> treated
 metadata %>% filter(str_detect(SampleName,'Untreated')) %>% filter(Platform=='ILLUMINA') %>% filter(str_detect(SampleName,'HCT116')) %>% dplyr::pull(Run) -> untreated
 
-#aws s3 cp s3://panorama-clk-repro/SRP091981/SRR5009487.Aligned.sortedByCoord.out.bam SRP091981/
+#aws s3 cp s3://clk-splicing/SRP091981/SRR5009487.Aligned.sortedByCoord.out.bam SRP091981/
 atreated<-"SRR5009487"
 auntreated<-"SRR5009474"
 

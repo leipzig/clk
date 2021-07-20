@@ -105,13 +105,15 @@ def getBamsFromSampleName(samp, path_prefix=None, include_bai=True):
     platform_ext = {'ILLUMINA':'Aligned.sortedByCoord.out','PACBIO_SMRT':'filtered'}
     runs = getRunsFromSampleName(samp)
     bams = []
-    for platform in ['ILLUMINA','PACBIO_SMRT']:
-        if path_prefix:
-                bams += ["{0}/{1}.{3}.{2}".format(
-                    path_prefix, replicate, ext, platform_ext[platform]) for replicate in runs for ext in exts]
-        else:
-            bams += ["{0}.{2}.{1}".format(
-                replicate, ext, platform_ext[platform]) for replicate in runs for ext in exts]
+    #for platform in ['ILLUMINA','PACBIO_SMRT']:
+        
+        
+    if path_prefix:
+            bams += ["{0}/{1}.{3}.{2}".format(
+                path_prefix, run, ext, platform_ext[getPlatformFromRun(run)]) for run in runs for ext in exts]
+    else:
+        bams += ["{0}.{2}.{1}".format(
+            replicate, ext, platform_ext[getPlatformFromRun(run)]) for run in runs for ext in exts]
     return(bams)
 
 def getFastqsFromSampleName(samp, path_prefix=None, include_bai=True):
@@ -124,6 +126,10 @@ def getFastqsFromSampleName(samp, path_prefix=None, include_bai=True):
         fastqs = ["{0}{1}".format(
             replicate, ext) for replicate in runs for ext in exts]
     return(fastqs)
+
+def getPlatformFromRun(run):
+    platform=st.loc[(st['Run']==run)]['Platform'].tolist()[0]
+    return(platform)
 
 def getRunsFromSampleName(samp,platform=None):
     #accept either dosage nicknames or the actual sample name

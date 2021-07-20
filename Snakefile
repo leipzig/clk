@@ -39,10 +39,10 @@ rule illumina_index:
 
 
 rule s3_pacbio_files:
-    input: expand(RAWDIR+"/{sampleids}.fastq", sampleids=PACBIO_SRA)
+    input: expand(RAWDIR+"/{sampleids}.fastq.gz", sampleids=PACBIO_SRA)
 
 rule pacbio_align:
-    input: expand(RAWDIR+"/{sampleids}.sam", sampleids=PACBIO_SRA)
+    input: expand(RAWDIR+"/{sampleids}.filtered.bam", sampleids=PACBIO_SRA)
 
 rule pacbio_lr2rmats:
     input: expand(RAWDIR+"/{sampleids}_sam_novel.gtf", sampleids=PACBIO_SRA)
@@ -69,7 +69,7 @@ rule fetchpair_from_aws:
             shell("wget -O {2} https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair2,output.pair2))
 
 rule fetchpacbio_from_aws:
-    output: pair1 = RAWDIR+"/{accession}.fastq.gz"
+    #output: pair1 = RAWDIR+"/{accession}.fastq.gz"
     run:
         s3pair1 = metautils.st.loc[metautils.st['Run'] == wildcards.accession]['Pair1Filename'].to_string(index=False).replace(' ','')
         s3pair2 = metautils.st.loc[metautils.st['Run'] == wildcards.accession]['Pair2Filename'].to_string(index=False).replace(' ','')
@@ -77,7 +77,7 @@ rule fetchpacbio_from_aws:
         print(s3pair1)
         if wildcards.accession in metautils.pacbioRuns():
             #pair1 correspond to the bas.h5
-            shell("wget -O {output.pair1} {2}".format(wildcards.accession,ena))
+            shell("wget -O {0} {1}".format(output.pair1,ena))
             
             # terrible quality
             #shell("wget https://clk-splicing.s3.amazonaws.com/SRP091981/{0}/{1}".format(wildcards.accession,s3pair1))
@@ -159,7 +159,7 @@ rule star_align:
 # minimap mapping for long reads
 rule minimap_map:
     input:
-        "SRP091981/{sample}.fastq"
+        "SRP091981/{sample}.fastq.gz"
     output:
         "SRP091981/{sample}.sam"
     threads:
@@ -199,23 +199,24 @@ rule run_rmatsiso_from_bam:
 
 #gtf = "gencode.v28.annotation.gtf",
 
+rule getbams:
+    input: lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample,path_prefix=RAWDIR)
+    output: "{sample}.gotbams"
+    shell: "touch {sample}.gotbams"
+
 #metautils.getfulldosagename(wildcards.sample1) no longer necessary
 rule run_rmatsiso_from_manifest:
     input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,path_prefix=RAWDIR),
            treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,path_prefix=RAWDIR),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
-    output: manifest=RAWDIR+"/{sample1}_vs_{sample2}/ISO_module"
+    output: "results/iso_{sample1}_vs_{sample2}/ISO_module"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
             mb = lambda wildcards: metautils.getECS('foo','mb','IsoModule'),
             gtf = "genes.gtf",
             jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2),
-            outdir = RAWDIR+"/{sample1}_vs_{sample2}/"
+            outdir = "results/iso_{sample1}_vs_{sample2}/"
     shell: """
-            comparison="{wildcards.sample1}_vs_{wildcards.sample2}"
-            project="SRP091981"
-            bytes="{params.bytes}"
-            gtf="{params.gtf}" 
-            rMATS-ISO.py  --in-gtf GRCh38_star/{params.gtf} --in-bam {input.manifest} -o ${params.outdir}
+            rMATS-ISO.py  --in-gtf GRCh38_star/{params.gtf} --in-bam {input.manifest} -o {params.outdir}
             """
 
 rule run_rmatsturbo_from_manifest:
@@ -491,7 +492,7 @@ rule salmonquant:
         """
 
 rule salmonquantsingle:
-    input: ref = "refs/gencode.salmon.v38/versionInfo.json", single = RAWDIR+"/{sample}.fastq"
+    input: ref = "refs/gencode.salmon.v38/versionInfo.json", single = RAWDIR+"/{sample}.fastq.gz"
     output: RAWDIR+"/salmon/single/{sample}/quant.sf"
     params: outdir = RAWDIR+"/salmon/single/{sample}"
     threads: 4
