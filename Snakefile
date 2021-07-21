@@ -572,20 +572,21 @@ rule arribarefs:
 rule callFusionsArriba:
     input: pair1 = RAWDIR+"/{sample}_1.fastq.gz", pair2 =  RAWDIR+"/{sample}_2.fastq.gz"
     output: RAWDIR+"/{sample}.fusions.tsv"
+    threads: 8
     shell:
         """
         ARRIBA_FILES=$CONDA_PREFIX/var/lib/arriba
         STAR \
         --runThreadN 8 \
+        --outTmpDir {wildcards.sample}.tmp \
         --genomeDir STAR_index_hg38_GENCODE28 --genomeLoad NoSharedMemory \
         --readFilesIn {input}  --readFilesCommand zcat \
         --outStd BAM_Unsorted --outSAMtype BAM Unsorted --outSAMunmapped Within --outBAMcompression 0 \
         --outFilterMultimapNmax 50 --peOverlapNbasesMin 10 --alignSplicedMateMapLminOverLmate 0.5 --alignSJstitchMismatchNmax 5 -1 5 5 \
         --chimSegmentMin 10 --chimOutType WithinBAM HardClip --chimJunctionOverhangMin 10 --chimScoreDropMax 30 \
-        --chimScoreJunctionNonGTAG 0 --chimScoreSeparation 1 --chimSegmentReadGapMax 3 --chimMultimapNmax 50 \
-        --outFileNamePrefix SRP091981/{wildcards.sample}.chim. 
-        arriba -x SRP091981/{wildcards.sample}.chim.Aligned.sortedByCoord.out.bam \
-           -g GENCODE28.gtf -a hg38.fa \
+        --chimScoreJunctionNonGTAG 0 --chimScoreSeparation 1 --chimSegmentReadGapMax 3 --chimMultimapNmax 50 | \
+        arriba -x /dev/stdin \
+           -g GENCODE28.gtf  -a hg38.fa \
            -b $ARRIBA_FILES/blacklist_hg38_h38_v2.1.0.tsv.gz -k $ARRIBA_FILES/known_fusions_hg38_h38_v2.1.0.tsv.gz \
            -p $ARRIBA_FILES/protein_domains_hg38_h38_v2.1.0.gff3 \
            -o {output}
