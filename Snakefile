@@ -18,6 +18,9 @@ ILLUMINA_SRA = metautils.illuminaRuns()
 PACBIO_SRA = metautils.pacbioRuns()
 TMPDIR = os.getcwd()
 
+rule all:
+    input: "results/fusionCount.txt", "SRP091981-sashimi/untreated_vs_treated/done"
+
 rule onemini:
     input: RAWDIR+"/SRR5009429_sam_novel.gtf", RAWDIR+"/SRR5009429.lr2rmats.log", RAWDIR+"/SRR5009429.filtered.bam"
 
@@ -131,12 +134,12 @@ rule getStarRefs:
 #/clk/refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf
 rule star_align:
     input: RAWDIR+"/{sample}_1.fastq.gz", RAWDIR+"/{sample}_2.fastq.gz"
-    output: RAWDIR+"/{sample}.nochim.Aligned.sortedByCoord.out.bam",
-            RAWDIR+"/{sample}.nochim.Log.final.out",
-            RAWDIR+"/{sample}.nochim.Log.out",
-            RAWDIR+"/{sample}.nochim.Log.progress.out",
-            RAWDIR+"/{sample}.nochim.SJ.out.tab"
-    threads: 16
+    output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",
+            RAWDIR+"/{sample}.Log.final.out",
+            RAWDIR+"/{sample}.Log.out",
+            RAWDIR+"/{sample}.Log.progress.out",
+            RAWDIR+"/{sample}.SJ.out.tab"
+    threads: 1
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','STAR'),
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','STAR'),
             genomeDir = "GRCh38_star_2.7.9",
@@ -157,7 +160,7 @@ rule star_align:
                  --outFileNamePrefix SRP091981/{wildcards.sample}.nochim.  \
                  --readFilesIn  SRP091981/{wildcards.sample}_1.fastq.gz SRP091981/{wildcards.sample}_2.fastq.gz
             
-            samtools index SRP091981/{wildcards.sample}.nochim.Aligned.sortedByCoord.out.bam
+            samtools index SRP091981/{wildcards.sample}.Aligned.sortedByCoord.out.bam
             """
             
 rule chimera_star_align:
@@ -552,6 +555,37 @@ rule suppaindex:
            multipleFieldSelection.py -i SRP091981/salmon/*/*/quant.sf -k 1 -f 4 -o iso_tpm.txt
            """
 
+rule suppaioe:
+    output: "clk.ioe"
+    shell:
+        """
+        suppa.py generateEvents -i   refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf -o clk.ioe -f ioe -e SE SS MX RI FL
+        suppa.py psiPerEvent --ioe-file clk.ioe --expression-file iso_tpm.txt -o clk.psiPerEvent 
+        """
+
+#suppa.py psiPerEvent --ioe-file clk.ioe_A3_strict.ioe --expression-file iso_tpm.txt -o clk.A3_strict.psiperevent
+
+suppa.py psiPerEvent --ioe-file clk.ioe_A3_strict.ioe --expression-file iso_tpm.txt -o clk.A3_strict
+
+rule isosplit:
+    input: "{file}.{ext}"
+    output: "{file}_005.{ext}","{file}_01.{ext}","{file}_05.{ext}","{file}_1.{ext}","{file}_5.{ext}","{file}_10.{ext}"
+    shell: """
+cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009494,SRR5009490,SRR5009482,SRR5009470,SRR5009451,SRR5009505,SRR5009501,SRR5009496,SRR5009387,SRR5009390,SRR5009396,SRR5009398,SRR5009434,SRR5009429,SRR5009425,SRR5009404,SRR5009463,SRR5009465,SRR5009468,SRR5009438,SRR5009534,SRR5009521,SRR5009474' > {wildcards.file}_untreated.{wildcards.ext}
+cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009526,SRR5009381' > {wildcards.file}_005.{wildcards.ext}
+cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009378,SRR5009464' > {wildcards.file}_01.{wildcards.ext}
+cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009513,SRR5009519,SRR5009528,SRR5009371,SRR5009373,SRR5009375,SRR5009376,SRR5009379,SRR5009405,SRR5009409,SRR5009412,SRR5009403,SRR5009423,SRR5009424,SRR5009435,SRR5009442,SRR5009448,SRR5009469,SRR5009487,SRR5009492,SRR5009515,SRR5009516,SRR5009377,SRR5009459' > {wildcards.file}_05.{wildcards.ext}
+cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009514,SRR5009491,SRR5009462,SRR5009453' > {wildcards.file}_1.{wildcards.ext}
+cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009504,SRR5009440,SRR5009481,SRR5009447,SRR5009436,SRR5009460,SRR5009428,SRR5009432,SRR5009433,SRR5009414,SRR5009416,SRR5009394,SRR5009399,SRR5009402,SRR5009380,SRR5009384,SRR5009523,SRR5009530,SRR5009532,SRR5009437,SRR5009392,SRR5009444,SRR5009479' > {wildcards.file}_5.{wildcards.ext}
+cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009509,SRR5009383' > {wildcards.file}_10.{wildcards.ext}
+            """
+
+rule isotargets:
+    input: "iso_tpm_10.txt","clk.A3_strict_10.psiperevent"
+#suppa.py diffSplice  --input <ioe-file> --psi <Cond1.psi> <Cond2.psi> --tpm <Cond1_expression-file> <Cond2_expression-file> --area <1000> --lower-bound <0.05> -gc -o <output-file>
+
+
+
 rule suppapsi:
     input: "iso_tpm.txt"
     output: "results/psiPerIsoform_isoform.psi"
@@ -592,5 +626,35 @@ rule callFusionsArriba:
            -o {output}
         """
 
+rule callFusionsArribaPacbio:
+    input: pair1 = RAWDIR+"/{sample}.fastq.gz"
+    output: RAWDIR+"/{sample,[^_]+}.fusions.pb.tsv"
+    threads: 8
+    shell:
+        """
+        ARRIBA_FILES=$CONDA_PREFIX/var/lib/arriba
+        STAR \
+        --runThreadN 8 \
+        --outTmpDir {wildcards.sample}.tmp \
+        --genomeDir STAR_index_hg38_GENCODE28 --genomeLoad NoSharedMemory \
+        --readFilesIn {input} --readFilesCommand zcat \
+        --outStd BAM_Unsorted --outSAMtype BAM Unsorted --outSAMunmapped Within --outBAMcompression 0 \
+        --outFilterMultimapNmax 50 --peOverlapNbasesMin 10 --alignSplicedMateMapLminOverLmate 0.5 --alignSJstitchMismatchNmax 5 -1 5 5 \
+        --chimSegmentMin 10 --chimOutType WithinBAM HardClip --chimJunctionOverhangMin 10 --chimScoreDropMax 30 \
+        --chimScoreJunctionNonGTAG 0 --chimScoreSeparation 1 --chimSegmentReadGapMax 3 --chimMultimapNmax 50 | \
+        arriba -x /dev/stdin \
+           -g GENCODE28.gtf  -a hg38.fa \
+           -b $ARRIBA_FILES/blacklist_hg38_h38_v2.1.0.tsv.gz -k $ARRIBA_FILES/known_fusions_hg38_h38_v2.1.0.tsv.gz \
+           -p $ARRIBA_FILES/protein_domains_hg38_h38_v2.1.0.gff3 \
+           -o {output}
+        """
+        
 rule fusioned:
     input: expand(RAWDIR+"/{sampleids}.fusions.tsv", sampleids=ILLUMINA_SRA)
+    output: "results/fusionCounts.txt"
+    shell:
+        """
+        echo "Type\tRun\tcount" > results/fusionCounts.txt
+        grep -c '^[^#]' SRP091981/*.fusions.tsv | sed -e 's/SRP091981\//all\t/' | sed -e 's/.fusions.tsv:/\t/' >> results/fusionCounts.txt
+        grep -c 'read-through' SRP091981/*.fusions.tsv | sed -e 's/SRP091981\//readthrough\t/' | sed -e 's/.fusions.tsv:/\t/' >> results/fusionCounts.txt
+        """
