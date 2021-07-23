@@ -556,35 +556,63 @@ rule suppaindex:
            """
 
 rule suppaioe:
-    output: "clk.ioe"
+    output: expand("clk_{event}_strict.ioe",event=['A5','AF','AL','A3','MX','RI','SE'])
     shell:
         """
-        suppa.py generateEvents -i   refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf -o clk.ioe -f ioe -e SE SS MX RI FL
-        suppa.py psiPerEvent --ioe-file clk.ioe --expression-file iso_tpm.txt -o clk.psiPerEvent 
+        suppa.py generateEvents -i   refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf -o clk -f ioe -e SE SS MX RI FL
         """
 
 #suppa.py psiPerEvent --ioe-file clk.ioe_A3_strict.ioe --expression-file iso_tpm.txt -o clk.A3_strict.psiperevent
 
-suppa.py psiPerEvent --ioe-file clk.ioe_A3_strict.ioe --expression-file iso_tpm.txt -o clk.A3_strict
+#suppa.py psiPerEvent --ioe-file clk.ioe_A3_strict.ioe --expression-file iso_tpm.txt -o clk.A3_strict
 
-rule isosplit:
+rule makepsiperevent:
+    input: tpm="iso_tpm.txt", ioe="clk_{event}_strict.ioe"
+    output: "clk_{event}_strict.psi"
+    params: core="clk_{event}_strict"
+    shell:
+        """
+        suppa.py psiPerEvent --ioe-file {input.ioe} --expression-file {input.tpm} -o {params.core}
+        """
+
+
+
+rule isosplitall:
     input: "{file}.{ext}"
-    output: "{file}_005.{ext}","{file}_01.{ext}","{file}_05.{ext}","{file}_1.{ext}","{file}_5.{ext}","{file}_10.{ext}"
+    output: expand("{seqtype}_{{file}}_{dose}.{{ext}}",seqtype=['all','ill'],dose=['untreated','05','10','5','005','1','01'])
     shell: """
-cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009494,SRR5009490,SRR5009482,SRR5009470,SRR5009451,SRR5009505,SRR5009501,SRR5009496,SRR5009387,SRR5009390,SRR5009396,SRR5009398,SRR5009434,SRR5009429,SRR5009425,SRR5009404,SRR5009463,SRR5009465,SRR5009468,SRR5009438,SRR5009534,SRR5009521,SRR5009474' > {wildcards.file}_untreated.{wildcards.ext}
-cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009526,SRR5009381' > {wildcards.file}_005.{wildcards.ext}
-cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009378,SRR5009464' > {wildcards.file}_01.{wildcards.ext}
-cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009513,SRR5009519,SRR5009528,SRR5009371,SRR5009373,SRR5009375,SRR5009376,SRR5009379,SRR5009405,SRR5009409,SRR5009412,SRR5009403,SRR5009423,SRR5009424,SRR5009435,SRR5009442,SRR5009448,SRR5009469,SRR5009487,SRR5009492,SRR5009515,SRR5009516,SRR5009377,SRR5009459' > {wildcards.file}_05.{wildcards.ext}
-cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009514,SRR5009491,SRR5009462,SRR5009453' > {wildcards.file}_1.{wildcards.ext}
-cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009504,SRR5009440,SRR5009481,SRR5009447,SRR5009436,SRR5009460,SRR5009428,SRR5009432,SRR5009433,SRR5009414,SRR5009416,SRR5009394,SRR5009399,SRR5009402,SRR5009380,SRR5009384,SRR5009523,SRR5009530,SRR5009532,SRR5009437,SRR5009392,SRR5009444,SRR5009479' > {wildcards.file}_5.{wildcards.ext}
-cat {wildcards.file}.{wildcards.ext} | csvcut -t -c 'SRR5009509,SRR5009383' > {wildcards.file}_10.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009494,SRR5009490,SRR5009482,SRR5009470,SRR5009451,SRR5009505,SRR5009501,SRR5009496,SRR5009387,SRR5009390,SRR5009396,SRR5009398,SRR5009434,SRR5009429,SRR5009425,SRR5009404,SRR5009463,SRR5009465,SRR5009468,SRR5009438,SRR5009534,SRR5009521,SRR5009474'  all_{wildcards.file}_untreated.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009526,SRR5009381'  all_{wildcards.file}_005.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009378,SRR5009464'  all_{wildcards.file}_01.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009513,SRR5009519,SRR5009528,SRR5009371,SRR5009373,SRR5009375,SRR5009376,SRR5009379,SRR5009405,SRR5009409,SRR5009412,SRR5009403,SRR5009423,SRR5009424,SRR5009435,SRR5009442,SRR5009448,SRR5009469,SRR5009487,SRR5009492,SRR5009515,SRR5009516,SRR5009377,SRR5009459'  all_{wildcards.file}_05.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009514,SRR5009491,SRR5009462,SRR5009453'  all_{wildcards.file}_1.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009504,SRR5009440,SRR5009481,SRR5009447,SRR5009436,SRR5009460,SRR5009428,SRR5009432,SRR5009433,SRR5009414,SRR5009416,SRR5009394,SRR5009399,SRR5009402,SRR5009380,SRR5009384,SRR5009523,SRR5009530,SRR5009532,SRR5009437,SRR5009392,SRR5009444,SRR5009479'  all_{wildcards.file}_5.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009509,SRR5009383'  all_{wildcards.file}_10.{wildcards.ext}
+
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009496,SRR5009521,SRR5009474'  ill_{wildcards.file}_untreated.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009526,SRR5009381'  ill_{wildcards.file}_005.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009378,SRR5009464'  ill_{wildcards.file}_01.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009487,SRR5009515,SRR5009377,SRR5009459'  ill_{wildcards.file}_05.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009514,SRR5009491,SRR5009462,SRR5009453'  ill_{wildcards.file}_1.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009437,SRR5009392,SRR5009444,SRR5009479'  ill_{wildcards.file}_5.{wildcards.ext}
+./scripts/subsetcols.py {wildcards.file}.{wildcards.ext} 'SRR5009509,SRR5009383'  ill_{wildcards.file}_10.{wildcards.ext} 
             """
+
+
+
 
 rule isotargets:
     input: "iso_tpm_10.txt","clk.A3_strict_10.psiperevent"
-#suppa.py diffSplice  --input <ioe-file> --psi <Cond1.psi> <Cond2.psi> --tpm <Cond1_expression-file> <Cond2_expression-file> --area <1000> --lower-bound <0.05> -gc -o <output-file>
 
+rule diffsplice:
+    input: ioe="clk.ioe_{sptype}_strict.ioe", c1psi="ill_clk_{sptype}_strict_{dose}.psi", utpsi="ill_clk_{sptype}_strict_untreated.psi", c1tpm="ill_iso_tpm_{dose}.txt", uttpm="ill_iso_tpm_untreated.txt"
+    output: "diff_{sptype}_strict_{dose}.txt"
+    shell: """
+            suppa.py diffSplice -m empirical --input {input.ioe} --psi {input.utpsi} {input.c1psi}  --tpm {input.uttpm} {input.c1tpm}  --area 1000 --lower-bound 1.0 -gc -o {output} -nan 0.5
+            """
 
+rule alldiff:
+    input: expand("diff_{event}_strict_{dose}.txt",event=['A5','AF','AL','A3','MX','RI','SE'],dose=['05','10','5','005','1','01'])
 
 rule suppapsi:
     input: "iso_tpm.txt"
