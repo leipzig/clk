@@ -25,20 +25,20 @@ rule onemini:
     input: RAWDIR+"/SRR5009429_sam_novel.gtf", RAWDIR+"/SRR5009429.lr2rmats.log", RAWDIR+"/SRR5009429.filtered.bam"
 
 rule justone:
-    input: RAWDIR+"/SRR5009515.Aligned.sortedByCoord.out.bam"
+    input: RAWDIR+"/SRR5009515.Aligned.sortedByCoord.out.md.bam"
 
 rule bigboy:
-    input: RAWDIR+"/SRR5009517.Aligned.sortedByCoord.out.bam"
+    input: RAWDIR+"/SRR5009517.Aligned.sortedByCoord.out.md.bam"
 
    
 rule s3_illumina_files:
     input: expand(RAWDIR+"/{sampleids}_{pair}.fastq.gz", sampleids=ILLUMINA_SRA, pair=[1,2])
 
 rule illumina_align:
-    input: expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam", sampleids=ILLUMINA_SRA)
+    input: expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.md.bam", sampleids=ILLUMINA_SRA)
 
 rule illumina_index:
-    input: expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.bai", sampleids=ILLUMINA_SRA)
+    input: expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.md.bam.bai", sampleids=ILLUMINA_SRA)
 
 
 rule s3_pacbio_files:
@@ -134,7 +134,7 @@ rule getStarRefs:
 #/clk/refs/GRCh38/Annotation/Genes.gencode/gencode.v38.annotation.gtf
 rule star_align:
     input: RAWDIR+"/{sample}_1.fastq.gz", RAWDIR+"/{sample}_2.fastq.gz"
-    output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",
+    output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.md.bam",
             RAWDIR+"/{sample}.Log.final.out",
             RAWDIR+"/{sample}.Log.out",
             RAWDIR+"/{sample}.Log.progress.out",
@@ -160,12 +160,12 @@ rule star_align:
                  --outFileNamePrefix SRP091981/{wildcards.sample}.nochim.  \
                  --readFilesIn  SRP091981/{wildcards.sample}_1.fastq.gz SRP091981/{wildcards.sample}_2.fastq.gz
             
-            samtools index SRP091981/{wildcards.sample}.Aligned.sortedByCoord.out.bam
+            samtools index SRP091981/{wildcards.sample}.Aligned.sortedByCoord.out.md.bam
             """
             
 rule chimera_star_align:
     input: RAWDIR+"/{sample}_1.fastq.gz", RAWDIR+"/{sample}_2.fastq.gz"
-    output: RAWDIR+"/{sample}.chim.Aligned.sortedByCoord.out.bam",
+    output: RAWDIR+"/{sample}.chim.Aligned.sortedByCoord.out.md.bam",
             RAWDIR+"/{sample}.chim.Log.final.out",
             RAWDIR+"/{sample}.chim.Log.out",
             RAWDIR+"/{sample}.chim.Log.progress.out",
@@ -194,7 +194,7 @@ rule chimera_star_align:
             --outFileNamePrefix SRP091981/{wildcards.sample}.chim.  \
             --readFilesIn  SRP091981/{wildcards.sample}_1.fastq.gz SRP091981/{wildcards.sample}_2.fastq.gz
             
-            samtools index SRP091981/{wildcards.sample}.chim.Aligned.sortedByCoord.out.bam
+            samtools index SRP091981/{wildcards.sample}.chim.Aligned.sortedByCoord.out.md.bam
             """
 
 # minimap mapping for long reads
@@ -246,20 +246,35 @@ rule getbams:
     shell: "touch {sample}.gotbams"
 
 #metautils.getfulldosagename(wildcards.sample1) no longer necessary
+
+
+#results/iso_untreated_vs_0.05/ISO_module/done results/iso_untreated_vs_0.5/ISO_module/done results/iso_untreated_vs_5.0/ISO_module/done results/iso_untreated_vs_0.1/ISO_module/done results/iso_untreated_vs_1.0/ISO_module/done results/iso_untreated_vs_treated/ISO_module/done
+
 rule run_rmatsiso_from_manifest:
-    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,path_prefix=RAWDIR),
-           treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,path_prefix=RAWDIR),
+    input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,path_prefix=RAWDIR,platform='ILLUMINA'),
+           treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,path_prefix=RAWDIR,platform='ILLUMINA'),
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
-    output: "results/iso_{sample1}_vs_{sample2}/ISO_module"
+    output: "results/iso_{sample1}_vs_{sample2}/ISO_module/done"
     params: bytes = lambda wildcards: metautils.getECS('foo','bytes','IsoModule'),
             mb = lambda wildcards: metautils.getECS('foo','mb','IsoModule'),
-            gtf = "genes.gtf",
+            gtf = "refs/Homo_sapiens.GRCh38.104.chred.gtf",
             jobname = lambda wildcards: re.sub('\.','',wildcards.sample1+'_'+wildcards.sample2),
             outdir = "results/iso_{sample1}_vs_{sample2}/"
     shell: """
-            rMATS-ISO.py  --in-gtf GRCh38_star/{params.gtf} --in-bam {input.manifest} -o {params.outdir}
+            python rMATS-ISO-master/rMATS-ISO.py  module  --gtf {params.gtf} --bam {input.manifest} -o {params.outdir}
+            touch {output}
             """
 
+rule run_rmatsiso_stat:
+    input: module="results/iso_{sample1}_vs_{sample2}/ISO_module",
+           manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
+    output: "results/iso_{sample1}_vs_{sample2}/EM_out/EM.out"
+    params: outdir = "results/iso_{sample1}_vs_{sample2}/"
+    shell:
+            """
+            python rMATS-ISO-master/rMATS-ISO.py stat --bam {input.manifest} -o {params.outdir}
+            """
+            
 rule run_rmatsturbo_from_manifest:
     input: untreated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample1,path_prefix=RAWDIR),
            treated=lambda wildcards: metautils.getBamsFromSampleName(wildcards.sample2,path_prefix=RAWDIR),
@@ -369,8 +384,8 @@ rule run_rmatssashimi_from_manifest:
             """
 
 rule bamindex:
-    input: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",
-    output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam.bai"
+    input: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.md.bam",
+    output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.md.bam.bai"
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','samtoolsindex'),
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','samtoolsindex')
     shell: """
@@ -378,7 +393,7 @@ rule bamindex:
             """
 
 rule subsample:
-    input: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.bam",
+    input: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.md.bam",
     output: RAWDIR+"/{sample}.Aligned.sortedByCoord.out.subsampled.bam",RAWDIR+"/{sample}.Aligned.sortedByCoord.out.subsampled.bam.bai"
     params: bytes = lambda wildcards: metautils.getECS(wildcards.sample,'bytes','samtoolssubsample'),
             mb = lambda wildcards: metautils.getECS(wildcards.sample,'mb','samtoolssubsample'),
@@ -392,12 +407,12 @@ rule subsample:
             """
 
 rule rmatsisooneoff:
-    input: untreated=expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", ext=['bam','bam.bai'], sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
-           treated=expand(PROJECT_BUCKET+"/"+RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.{ext}", ext=['bam','bam.bai'], sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),
-           manifest="untreatedvslowdose.manifest.txt"
+    input: untreated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.md.{ext}", ext=['bam','bam.bai'], sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
+           treated=expand(RAWDIR+"/{sampleids}.Aligned.sortedByCoord.out.md.{ext}", ext=['bam','bam.bai'], sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),
+           manifest="SRP091981/untreatedvslowdose.manifest.txt"
             
-    output: expand(PROCESSDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
-            expand(PROCESSDIR+"/{sampleids}.Aligned.sortedByCoord.out.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),
+    output: expand(PROCESSDIR+"/{sampleids}.Aligned.sortedByCoord.out.md.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("Untreated HCT116")),
+            expand(PROCESSDIR+"/{sampleids}.Aligned.sortedByCoord.out.md.bam.IsoExon", sampleids=metautils.getRunsFromSampleName("0.5 uM T3 treated HCT116")),
             
     shell:
         """
@@ -599,20 +614,29 @@ rule isosplitall:
             """
 
 
-
-
 rule isotargets:
     input: "iso_tpm_10.txt","clk.A3_strict_10.psiperevent"
 
 rule diffsplice:
     input: ioe="clk.ioe_{sptype}_strict.ioe", c1psi="ill_clk_{sptype}_strict_{dose}.psi", utpsi="ill_clk_{sptype}_strict_untreated.psi", c1tpm="ill_iso_tpm_{dose}.txt", uttpm="ill_iso_tpm_untreated.txt"
-    output: "diff_{sptype}_strict_{dose}.txt"
+    output: "diff_{sptype}_strict_{dose}.dpsi","diff_{sptype}_strict_{dose}.psivec"
+    params: core = "diff_{sptype}_strict_{dose}"
     shell: """
-            suppa.py diffSplice -m empirical --input {input.ioe} --psi {input.utpsi} {input.c1psi}  --tpm {input.uttpm} {input.c1tpm}  --area 1000 --lower-bound 1.0 -gc -o {output} -nan 0.5
+            suppa.py diffSplice -m classical --input {input.ioe} --psi {input.utpsi} {input.c1psi}  --tpm {input.uttpm} {input.c1tpm}  --area 1000 --lower-bound 0.0 -gc -o {params.core}
             """
 
 rule alldiff:
-    input: expand("diff_{event}_strict_{dose}.txt",event=['A5','AF','AL','A3','MX','RI','SE'],dose=['05','10','5','005','1','01'])
+    input: expand("diff_{event}_strict_{dose}.dpsi",event=['A5','AF','AL','A3','MX','RI','SE'],dose=['05','10','5','005','1','01'])
+
+rule allsimplified:
+    input: expand("diff_{event}_strict_{dose}.dpsi.simplified",event=['A5','AF','AL','A3','MX','RI','SE'],dose=['05','10','5','005','1','01'])
+    output: "all.simplified.csv"
+    shell: "csvstack -t diff*simplified > all.simplified.csv"
+
+rule simplifydiff:
+    input: "diff_{event}_strict_{dose}.dpsi"
+    output: "diff_{event}_strict_{dose}.dpsi.simplified"
+    shell: "./scripts/simplifydiff.py {input} {wildcards.event} {wildcards.dose} {output}"
 
 rule suppapsi:
     input: "iso_tpm.txt"

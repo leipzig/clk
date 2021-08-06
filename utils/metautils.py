@@ -1,5 +1,6 @@
 import pandas
 pandas.set_option('display.max_colwidth',1000)
+pandas.set_option('display.max_rows', None)
 st = pandas.read_csv("metadata/metadata.csv",
                      dtype={'Run,': object,
                             'ReleaseDate,': object, 'LoadDate,': object, 'spots,': object, 'bases,': object,
@@ -15,12 +16,12 @@ st = pandas.read_csv("metadata/metadata.csv",
                             'dbgap_study_accession,': object, 'Consent,': object, 'RunHash,': object, 'ReadHash': object})
 
 fl = pandas.read_csv("metadata/filenames.txt",sep="\t")
-st = st.merge(fl, how='inner', on="Run")
+st = st.merge(fl, how='left', on="Run")
 sra = pandas.read_csv("metadata/SRP091981.metadata",sep="\t")
 #st = st.merge(sra, how='inner', on="Run")
 sra = sra.rename(columns={'run_accession': 'Run'})  
 sra['stranded']=sra['experiment_title'].str.contains('(stranded)', regex=False)
-st = st.merge(sra,how='inner', on="Run")
+st = st.merge(sra,how='left', on="Run")
 
 def illuminaRuns():
     return(st.loc[st['Platform'] == 'ILLUMINA']['Run'].tolist())
@@ -85,11 +86,11 @@ def getECS(runName, units, program):
 # sam2_rep3.bam
 
 
-def twoSampleComparisonManifest(samp1, samp2, filename, path_prefix=None):
+def twoSampleComparisonManifest(samp1, samp2, filename, path_prefix=None, platform='ILLUMINA'):
     text_file = open(filename, "w")
     text_file.write("2\n")  # two-way comparison
     for runName in [samp1, samp2]:
-        run = getBamsFromSampleName(runName, path_prefix, include_bai=False)
+        run = getBamsFromSampleName(runName, path_prefix, include_bai=False, platform=platform)
         text_file.write("{0}\n".format(len(run)))
         for replicate in run:
             text_file.write("{0}\n".format(replicate))
@@ -97,13 +98,13 @@ def twoSampleComparisonManifest(samp1, samp2, filename, path_prefix=None):
 # "panorama-clk-repro/SRP091981/
 
 
-def getBamsFromSampleName(samp, path_prefix=None, include_bai=True):
+def getBamsFromSampleName(samp, path_prefix=None, include_bai=True, platform=None):
     if include_bai:
         exts = ['bam', 'bam.bai']
     else:
         exts = ['bam']
-    platform_ext = {'ILLUMINA':'Aligned.sortedByCoord.out','PACBIO_SMRT':'filtered'}
-    runs = getRunsFromSampleName(samp)
+    platform_ext = {'ILLUMINA':'Aligned.sortedByCoord.out.md','PACBIO_SMRT':'filtered'}
+    runs = getRunsFromSampleName(samp,platform=platform)
     bams = []
     #for platform in ['ILLUMINA','PACBIO_SMRT']:
     if path_prefix:
@@ -129,18 +130,30 @@ def getFastqsFromSampleName(samp, path_prefix=None, include_bai=True):
             replicate, ext) for replicate in runs for ext in exts]
     return(fastqs)
 
-def getRunsFromSampleName(samp,platform=None,stranded=False):
-    #accept either dosage nicknames or the actual sample name
-    if platform is not None:
-        if samp.lower() in dosageTable:
-            return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) & (st['Platform'] == platform) & (st['stranded'] == stranded)]['Run'].tolist())
+def getRunsFromSampleName(samp,platform=None,stranded=None):
+    if stranded is not None:
+        #accept either dosage nicknames or the actual sample name
+        if platform is not None:
+            if samp.lower() in dosageTable:
+                return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) & (st['Platform'] == platform) & (st['stranded'] == stranded)]['Run'].tolist())
+            else:
+                return(st.loc[(st['SampleName']==samp) & (st['Platform'] == platform) & (st['stranded'] == stranded)]['Run'].tolist())
         else:
-            return(st.loc[(st['SampleName']==samp) & (st['Platform'] == platform) & (st['stranded'] == stranded)]['Run'].tolist())
+            if samp.lower() in dosageTable:
+                return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) & (st['stranded'] == stranded)]['Run'].tolist())
+            else:
+                return(st.loc[(st['SampleName']==samp) & (st['stranded'] == stranded)]['Run'].tolist())
     else:
-        if samp.lower() in dosageTable:
-            return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) & (st['stranded'] == stranded)]['Run'].tolist())
+        if platform is not None:
+            if samp.lower() in dosageTable:
+                return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) & (st['Platform'] == platform) ]['Run'].tolist())
+            else:
+                return(st.loc[(st['SampleName']==samp) & (st['Platform'] == platform) ]['Run'].tolist())
         else:
-            return(st.loc[(st['SampleName']==samp) & (st['stranded'] == stranded)]['Run'].tolist())
+            if samp.lower() in dosageTable:
+                return(st.loc[(st['SampleName'].isin(dosageTable[samp.lower()])) ]['Run'].tolist())
+            else:
+                return(st.loc[(st['SampleName']==samp) ]['Run'].tolist())
 
 def getfulldosagename(nickname):
     return(dosageTable[nickname])
