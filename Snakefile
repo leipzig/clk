@@ -238,6 +238,20 @@ rule run_rmatsiso_from_bam:
             sh scripts/isomodule.sh
             """
 
+rule iso_classify:
+    input: isoexon="results/iso_untreated_vs_{dose}/ISO_module/SRR5009496.Aligned.sortedByCoord.out.md.bam.IsoExon",
+            emout="results/iso_untreated_vs_{dose}/EM_out/EM.out"
+    output: summary="results/iso_untreated_vs_{dose}/ISO_classify/ISO_module_type_summary.txt",
+            stype="results/iso_untreated_vs_{dose}/ISO_classify/ISO_module_type.txt",
+            coor="results/iso_untreated_vs_{dose}/ISO_classify/ISO_module_coor.txt",
+            gene="results/iso_untreated_vs_{dose}/ISO_classify/ISO_module_gene.txt",
+    shell:
+       """
+       mkdir -p results/iso_untreated_vs_0.5/ISO_classify/
+       echo "python2.7 rMATS-ISO-master/ISOClassify/IsoClass.py {input.isoexon} {output.summary} {output.stype}"
+       echo "python2.7 rMATS-ISO-master/ISOPlot/IsoPlot.py {input.emout} {input.isoexon} {output.coor} {output.gene}"
+       """
+
 #gtf = "gencode.v28.annotation.gtf",
 
 rule getbams:
@@ -270,6 +284,7 @@ rule run_rmatsiso_stat:
            manifest=RAWDIR+"/{sample1}_vs_{sample2}.manifest.txt"
     output: "results/iso_{sample1}_vs_{sample2}/EM_out/EM.out"
     params: outdir = "results/iso_{sample1}_vs_{sample2}/"
+    threads: 4
     shell:
             """
             python rMATS-ISO-master/rMATS-ISO.py stat --bam {input.manifest} -o {params.outdir}

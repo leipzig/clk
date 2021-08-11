@@ -1,5 +1,5 @@
 ---
-title: "CLK reproduction"
+title: "CLK refactor and test of robustness"
 output:
   html_document:
     df_print: paged
@@ -56,7 +56,7 @@ metadata %>% group_by(SampleName) %>% summarize(samples=n()) %>% arrange(-sample
 ```
 
 ### Alignment and rMATS-ISO
-Alignment was performed with STAR against hg38, using the preferred iGenomes gtf reference. Both "stranded" and "unstranded" RNA-Seq samples were combined.
+Alignment was performed with STAR against hg38 using GTEX pipeline settings. The alignments themselves were run on the Truwl.com platform.
 
 ```
 STAR --runMode alignReads \
@@ -91,7 +91,7 @@ The following columns are returned from rMATS-EM:
 
 ```{r hct116}
 pthresh<-0.01
-doses<-c('0.05','0.1','0.5','1.0','5.0')
+doses<-c('0.05','0.5','1.0','5.0')
 control<-"untreated"
 ```
 
@@ -142,10 +142,10 @@ control<-"untreated184"
 ```{r doi}
 dose<-c('0.5')
 control<-"untreated"
-em<-read.table(paste0("results/",control,'_vs_',dose,'/EM_out/EM.out'),comment.char = '',strip.white = TRUE, header=TRUE)
-coor<-read.table(paste0("results/",control,'_vs_',dose,'/ISO_classify/ISO_module_coor.txt'),comment.char = '',strip.white = TRUE, header=FALSE,sep=":",col.names = c("chr","strand","start","end"))
-gene<-read.table(paste0("results/",control,'_vs_',dose,'/ISO_classify/ISO_module_gene.txt'),comment.char = '',strip.white = TRUE, header=FALSE,sep="_",col.names= c("asm","hugo","ensg"))
-type<-read.table(paste0("results/",control,'_vs_',dose,'/ISO_classify/ISO_module_type.txt'),comment.char = '',strip.white = TRUE, header=FALSE)
+em<-read.table(paste0("results/iso_",control,'_vs_',dose,'/EM_out/EM.out'),comment.char = '',strip.white = TRUE, header=TRUE)
+coor<-read.table(paste0("results/iso_",control,'_vs_',dose,'/ISO_classify/ISO_module_coor.txt'),comment.char = '',strip.white = TRUE, header=FALSE,sep=":",col.names = c("chr","strand","start","end"))
+gene<-read.table(paste0("results/iso_",control,'_vs_',dose,'/ISO_classify/ISO_module_gene.txt'),comment.char = '',strip.white = TRUE, header=FALSE,sep="_",col.names= c("asm","hugo","ensg"))
+type<-read.table(paste0("results/iso_",control,'_vs_',dose,'/ISO_classify/ISO_module_type.txt'),comment.char = '',strip.white = TRUE, header=FALSE)
 #typesummary<-
 ```
 
