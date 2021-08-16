@@ -248,8 +248,8 @@ rule iso_classify:
     shell:
        """
        mkdir -p results/iso_untreated_vs_0.5/ISO_classify/
-       echo "python2.7 rMATS-ISO-master/ISOClassify/IsoClass.py {input.isoexon} {output.summary} {output.stype}"
-       echo "python2.7 rMATS-ISO-master/ISOPlot/IsoPlot.py {input.emout} {input.isoexon} {output.coor} {output.gene}"
+       python2.7 rMATS-ISO-master/ISOClassify/IsoClass.py {input.isoexon} {output.summary} {output.stype}
+       python2.7 rMATS-ISO-master/ISOPlot/IsoPlot.py {input.emout} {input.isoexon} {output.coor} {output.gene}
        """
 
 #gtf = "gencode.v28.annotation.gtf",

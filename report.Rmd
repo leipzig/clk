@@ -1,6 +1,8 @@
 ---
 title: "CLK refactor and test of robustness"
 output:
+  word_document: default
+  pdf_document: default
   html_document:
     df_print: paged
 ---
@@ -19,12 +21,18 @@ Of particular interest in the formation of conjoined genes (CG) when CLK is inhi
 
 ```{r}
 library(knitr)
+library(rmarkdown)
 library(ggplot2)
-library(dplyr)
 library(stringr)
 library(biomaRt)
 library(Gviz)
+library(org.Hs.eg.db)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+
+library(dplyr)
 metadata<-read.csv("metadata/metadata.csv")
+
+# for my notes: Oo1Zafe3Qox3
 ```
 
 `nrow(metadata)` were obtained
@@ -110,12 +118,12 @@ for(dose in doses){
 
 #set p_value of 0 to a token dummy minimum, display only highly significant assemblies
 #ggplot(em_all %>% filter(!is.na(p_value)) %>% filter(p_value<=0.01) %>% rowwise() %>% dplyr::mutate(p_value = max(p_value,1e-16)),aes(-log(p_value)))+geom_histogram(binwidth=1)+facet_wrap(.~dose)
-ggplot(em_all %>% filter(!is.na(p_value)) %>% rowwise() %>% mutate(sig=ifelse(p_value<=pthresh,paste0("p<=",pthresh),paste0("p>",pthresh))),aes(sig,fill=dose))+geom_bar(stat="count")+ylab("Number of ASM clusters")+xlab("Sig level")+facet_wrap(.~dosestr)
+ggplot(em_all %>% dplyr::filter(!is.na(p_value)) %>% rowwise() %>% mutate(sig=ifelse(p_value<=pthresh,paste0("p<=",pthresh),paste0("p>",pthresh))),aes(sig,fill=dose))+geom_bar(stat="count")+ylab("Number of ASM clusters")+xlab("Sig level")+facet_wrap(.~dosestr)
 ```
 
 
 ```{r tabledoseresponse, warning=FALSE}
-em_all %>% filter(!is.na(p_value)) %>% rowwise() %>% mutate(sig=p_value<=pthresh) %>% group_by(dose,sig) %>% summarize(cnt=n()) %>% reshape2::acast(dose~sig) -> sig_table
+em_all %>% dplyr::filter(!is.na(p_value)) %>% rowwise() %>% mutate(sig=p_value<=pthresh) %>% group_by(dose,sig) %>% summarize(cnt=n()) %>% reshape2::acast(dose~sig) -> sig_table
 dimnames(sig_table)[[2]]<-c(paste0("p>",pthresh),paste0("p<=",pthresh))
 sig_table<-cbind(sig_table,total=rowSums(sig_table))
 sig_table<-cbind(sig_table,sig_frac=round(sig_table[,2]/sig_table[,3],2))
@@ -126,17 +134,17 @@ knitr::kable(sig_table)
 
 The number of assemblies in which significant AS events (p<`r pthresh`) were observed as a fraction of all assemblies was highest in the `untreated_vs_1.0` group, although the greatest fold increase occurs at 0.5uM `r max(fold_change)` reported in the paper as 4.1.
 
-### Dose dependent splicing patterns of T3 in 184-hTert
-```{r htert184}
-doses<-c('0.5-184','1.0-184','5.0-184')
-control<-"untreated184"
-```
+<!-- ### Dose dependent splicing patterns of T3 in 184-hTert -->
+<!-- ```{r htert184} -->
+<!-- doses<-c('0.5-184','1.0-184','5.0-184') -->
+<!-- control<-"untreated184" -->
+<!-- ``` -->
 
-```{r htert184plot, ref.label='plotdoseresponse'}
-```
+<!-- ```{r htert184plot, ref.label='plotdoseresponse'} -->
+<!-- ``` -->
 
-```{r htert184table, ref.label='tabledoseresponse'}
-```
+<!-- ```{r htert184table, ref.label='tabledoseresponse'} -->
+<!-- ``` -->
 
 ### Clusters of interest in T3 0.5
 ```{r doi}
@@ -170,16 +178,16 @@ strmin<-function(x){
   return(min(as.numeric((str_split(x,',',simplify = TRUE)))))
 }
 
-em %>% filter(total_isoforms<=3,total_exons<=4) %>% arrange(p_value) %>% head(n=10) -> simple_events
+em %>% dplyr::filter(total_isoforms<=3,total_exons<=4) %>% arrange(p_value) %>% head(n=10) -> simple_events
 
 ```
 
 ### Top 10 by test statistic
 ```{r}
-knitr::kable(em %>% filter(test_statistic==max(em$test_statistic,na.rm = TRUE)))
-em %>% filter(test_statistic==max(em$test_statistic,na.rm = TRUE)) %>% pull(ASM_name) %>% as.character() -> top_hit
+knitr::kable(em %>% dplyr::filter(test_statistic==max(em$test_statistic,na.rm = TRUE)))
+em %>% dplyr::filter(test_statistic==max(em$test_statistic,na.rm = TRUE)) %>% pull(ASM_name) %>% as.character() -> top_hit
 str_replace(top_hit,'#','') -> top_hit_nohash
-gene %>% filter(asm==top_hit_nohash)
+gene %>% dplyr::filter(asm==top_hit_nohash)
 coords<-coor[which(em$ASM_name==top_hit),]
 ```
 
@@ -193,50 +201,61 @@ reduce(genes_gr) -> genes_reduced
 ir<-IRanges(start=coor$start,end = coor$end)
 coor_gr<-GRanges(seqnames = coor$chr,ranges=ir,strand = coor$strand)
 GenomicRanges::findOverlaps(subject=genes_reduced,query=coor_gr) -> hits
-as.data.frame(hits) %>% group_by(queryHits) %>% summarize(nhit=n()) %>% filter(nhit>1) %>% pull(queryHits) -> cg
+
+#this is my apporac to find clusters that span more than one gene
+as.data.frame(hits) %>% group_by(queryHits) %>% summarize(nhit=n()) %>% dplyr::filter(nhit>1) %>% pull(queryHits) -> cg
 
 #now with the subset of ranges that span more than one gene hit up teh original txdb so we can get real gene ids
 cg_gr<-coor_gr[cg,]
 GenomicRanges::findOverlaps(subject=genes_gr,query=cg_gr) -> cg_hits
 
-genes_gr[subjectHits(cg_hits),"gene_id"]
+cgranges<-genes_gr[subjectHits(cg_hits),"gene_id"]
+```
+There are only `r length(cgranges$gene_id)` such conjoined genes identified with clusters that span more than two genes.
 
 #get teh gene ids
-txtable = select(txdb, keys=cg_hits, columns="SYMBOL", keytype="GENEID")
-select(org.Hs.eg.db, geneIDs, "SYMBOL")
+```{r}
+txtable = biomaRt::select(txdb, keys=cgranges$gene_id, columns=columns(txdb), keytype="GENEID")
+library(org.Hs.eg.db)
+hgnc_names<-biomaRt::select(org.Hs.eg.db, cgranges$gene_id, "SYMBOL")
+cgranges$hgnc<-hgnc_names$SYMBOL
+knitr::kable(cgranges)
 ```
+
 
 #### Top hit: `r top_hit`
 
 ```{r }
 dose="0.5"
 #treated
-metadata %>% filter(str_detect(SampleName,dose)) %>% filter(str_detect(SampleName,'T3')) %>% filter(Platform=='ILLUMINA') %>% filter(str_detect(SampleName,'HCT116'))  %>% dplyr::pull(Run) -> treated
-metadata %>% filter(str_detect(SampleName,'Untreated')) %>% filter(Platform=='ILLUMINA') %>% filter(str_detect(SampleName,'HCT116')) %>% dplyr::pull(Run) -> untreated
+metadata %>% dplyr::filter(str_detect(SampleName,dose)) %>% dplyr::filter(str_detect(SampleName,'T3')) %>% dplyr::filter(Platform=='ILLUMINA') %>% filter(str_detect(SampleName,'HCT116'))  %>% dplyr::pull(Run) -> treated
+metadata %>% dplyr::filter(str_detect(SampleName,'Untreated')) %>% dplyr::filter(Platform=='ILLUMINA') %>% dplyr::filter(str_detect(SampleName,'HCT116')) %>% dplyr::pull(Run) -> untreated
 
 #aws s3 cp s3://clk-splicing/SRP091981/SRR5009487.Aligned.sortedByCoord.out.bam SRP091981/
 atreated<-"SRR5009487"
 auntreated<-"SRR5009474"
 
 plot_window<-function(asm,type){
-  str_replace(asm,'#','') -> asm_nohash
-  gene %>% filter(asm==asm_nohash)
+  stringr::str_replace(asm,'#','') -> asm_nohash
+  gene %>% dplyr::filter(asm==asm_nohash)
   coords<-coor[which(em$ASM_name==asm),]
-  afrom <- coords$start - 10000
-  ato <- coords$end + 10000
+  afrom <- coords$start - 100
+  ato <- coords$end + 100
   chr <- as.character(coords$chr)
-  treatedName <- metadata %>% filter(Run==atreated) %>% pull(SampleName) %>% as.character() %>% str_replace_all(' ','_')
-  untreatedName <- metadata %>% filter(Run==auntreated) %>% pull(SampleName) %>% as.character() %>% str_replace_all(' ','_')
+  treatedName <- metadata %>% dplyr::filter(Run==atreated) %>% pull(SampleName) %>% as.character() %>% stringr::str_replace_all(' ','_')
+  untreatedName <- metadata %>% dplyr::filter(Run==auntreated) %>% pull(SampleName) %>% as.character() %>% stringr::str_replace_all(' ','_')
   if(type=='gviz'){
-    treatedTrack <- AlignmentsTrack(paste0("../SRP091981/",atreated,".Aligned.sortedByCoord.out.bam"), isPaired = TRUE,name = treatedName)
-    untreatedTrack  <- AlignmentsTrack(paste0("../SRP091981/",auntreated,".Aligned.sortedByCoord.out.bam"), isPaired = TRUE, name = untreatedName)
+    treatedTrack <- AlignmentsTrack(paste0("./SRP091981/",atreated,".Aligned.sortedByCoord.out.md.bam"), isPaired = TRUE,name = treatedName)
+    untreatedTrack  <- AlignmentsTrack(paste0("./SRP091981/",auntreated,".Aligned.sortedByCoord.out.md.bam"), isPaired = TRUE, name = untreatedName)
     options(ucscChromosomeNames=TRUE)
     
-    bmt <- BiomartGeneRegionTrack(genome = "hg38", name="ENSEMBL", chromosome = chr, start = afrom, end = ato,biomart=biomaRt::useMart(biomart="ensembl",dataset="hsapiens_gene_ensembl") , stacking = "full")
-    plotTracks(c(bmt,untreatedTrack,treatedTrack), from = afrom, to = ato, chromosome = chr, type = c("coverage","sashimi"))
+    bmt <- BiomartGeneRegionTrack(genome = "hg38", name="ENSEMBL", chromosome = chr, start = afrom, end = ato,biomart=biomaRt::useMart(biomart="ensembl",dataset="hsapiens_gene_ensembl") , stacking = "squish")
+    plotTracks(list(bmt,untreatedTrack,treatedTrack), from = afrom, to = ato, chromosome = chr) #, type = c("coverage","sashimi"))
   }else{
-    sashimiPlot<-paste0("rmats2sashimiplot --b1 ",paste0("../SRP091981/",atreated,".Aligned.sortedByCoord.out.bam")," --b2 ",paste0("../SRP091981/",auntreated,".Aligned.sortedByCoord.out.bam")," -c ",chr,":",coords$strand,":",afrom,":",ato,":../GRCh38_star/gencode.v28.annotation.gtf --l1 ",treatedName," --l2 ",untreatedName, " --exon_s 1 --intron_s 5 -o sashimiout")
+    sashimiPlot<-paste0("rmats2sashimiplot --b1 ",paste0("./SRP091981/",atreated,".Aligned.sortedByCoord.out.md.bam")," --b2 ",paste0("../SRP091981/",auntreated,".Aligned.sortedByCoord.out.md.bam")," -c ",chr,":",coords$strand,":",afrom,":",ato,":../GRCh38_star/gencode.v28.annotation.gtf --l1 ",treatedName," --l2 ",untreatedName, " --exon_s 1 --intron_s 5 -o sashimiout")
     cat(sashimiPlot)
   }
 }
+
+plot_window(top_hit,"gviz")
 ```
